@@ -1,0 +1,576 @@
+---
+title: "Survey Duration"
+output: html_document
+---
+
+
+```{r setup, include=FALSE, warning = FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message=FALSE,
+                      warning = FALSE)
+
+
+population<-c("host","refugee")[2]
+write_output<-c("yes","no")[1]
+day_to_run <- Sys.Date()
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(lubridate)
+library(rgdal)
+library(butteR)
+library(kableExtra)
+library(gsubfn)
+library(stringi)
+library(sf)
+library(data.table)
+source("functions/GIS_Project_Functions.R")
+source("functions/Load_Audit.R")
+source("scripts/active_path.R")
+
+
+hh<-read.csv(hh_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
+hh_join_enu <- hh %>% select(c("X_uuid","enumerator_id"))
+# names(hh_join_enu) <- str_replace_all(names(hh_join_enu),"X_uuid","X_submission__uuid")
+indv<-read.csv(indv_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
+names(indv) <- str_replace_all(names(indv),"X_submission__uuid","X_uuid")
+audit_yes<-butteR::load_audit(data=hh, 
+                      path.to.zip = audit_zipfile,
+                      path.to.unzip = path_unzip,
+                      copy.zip = TRUE,
+                      path.to.copy.zip = copy_zip_to,
+                      delete.unzipped=TRUE
+                      )
+```
+
+## Duration
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+dfl<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+
+  start_question <- d %>% filter(node==paste0(audit_node,"informed_consent")& !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  if(population == "refugee"){
+  end_question<-d %>% filter(node==paste0(audit_node,"end_note")& !is.na(node)) %>% 
+    select(end)}
+    if(population == "host"){
+  end_question<-d %>% filter(node==paste0(audit_node,"consent_received/end_note")& !is.na(node)) %>% 
+    select(end)}
+  
+  end_question<-max(end_question$end)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  dfl[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+survey_time<-do.call("rbind", dfl)
+
+survey_time %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Full survey time") %>% kable_styling(position = "center")
+
+
+disability_grp<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+
+  start_question <- d %>% filter(node==paste0(audit_node,"consent_received/disability_seeing")& !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  end_question<-d %>% filter(node==paste0(audit_node,"consent_received/disability_speaking")& !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  disability_grp[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+disability_grp_df<-do.call("rbind", disability_grp)
+disability_grp_df %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Disability Group**") %>% kable_styling(position = "center")
+
+
+
+
+shelter<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+  
+  a <- grep('Shelter_NFI', d$node, value=TRUE)
+
+
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  shelter[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+shelter_df<-do.call("rbind", shelter)
+shelter_df %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Shelter Group**") %>% kable_styling(position = "center")
+
+
+
+health<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+# d$node<-gsub("\\[1]","",d$node)
+  a <- grep('Health', d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  health[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)}
+
+
+health_df<-do.call("rbind", health)
+health_df %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Helath Group**") %>% kable_styling(position = "center")
+
+if (population == "Refugee") {
+  
+
+nuitrition<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+  a <- grep("nutrition", d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  nuitrition[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+nuitrition_df2<-do.call("rbind", nuitrition)
+nuitrition_df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Nuitrition Group**") %>% kable_styling(position = "center")
+
+}
+
+food_livelihoood<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+  a <- grep('/Food_security_Livelihood/', d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  food_livelihoood[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+food_livelihoood_df2<-do.call("rbind", food_livelihoood)
+
+food_livelihoood_df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Food Security and Livelihood Group**") %>% kable_styling(position = "center")
+
+
+
+
+wash<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+  a <- grep('/WASH/', d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  wash[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+wash_df2<-do.call("rbind", wash)
+wash_df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**WASH Group**") %>% kable_styling(position = "center")
+
+
+
+protection<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+
+a <- grep('protection_group', d$node, value=TRUE)
+
+
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  protection[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+protection_df2<-do.call("rbind", protection)
+protection_df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Protection Group**") %>% kable_styling(position = "center")
+
+
+accountibility<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+
+  a <- grep('/accountability/', d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  
+
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  accountibility[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+accountibility_df2<-do.call("rbind", accountibility)
+
+accountibility_df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Accountibility Group**") %>% kable_styling(position = "center")
+
+
+
+individual<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+
+  start_question <- d %>% filter(node==paste0(audit_node,"consent_received/individual_information/repeat_introduction")& !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  end_question<-d %>% filter(node==paste0(audit_node,"consent_received/Shelter_NFI/shelter_issues")& !is.na(node)) %>% 
+    select(start)
+  end_question<-min(end_question$start)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  individual[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+individual_df2<-do.call("rbind", individual)
+
+individual_df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Individual Group**") %>% kable_styling(position = "center")
+
+
+hh_group<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+
+  start_question <- d %>% filter(node==paste0(audit_node,"consent_received/respondent_age")& !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  end_question<-d %>% filter(node==paste0(audit_node,"consent_received/edu_highest")& !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  hh_group[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+hh_group_df2<-do.call("rbind", hh_group)
+
+hh_group_df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Household Group**") %>% kable_styling(position = "center")
+
+
+health_copping<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+
+  a <- grep('health_coping_group', d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  
+
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  health_copping[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+health_copping_df2<-do.call("rbind", health_copping)
+
+health_copping_df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Health Coping Group**") %>% kable_styling(position = "center")
+
+#########
+food_consumption<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+
+  a <- grep('food_consumption_group', d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  
+
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  food_consumption[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+food_consumption_df2<-do.call("rbind", food_consumption)
+
+food_consumption_df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Food Consumption Group**") %>% kable_styling(position = "center")
+
+
+#########
+coping_mechanism<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+
+  a <- grep('coping_mechanism', d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  
+
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  coping_mechanism[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+coping_mechanism_df2<-do.call("rbind", coping_mechanism)
+
+coping_mechanism_df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Coping Mechanism**") %>% kable_styling(position = "center")
+
+
+#########
+food_coping_group<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+
+  a <- grep('food_coping_group', d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  
+
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  food_coping_group[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+food_coping_group_df2<-do.call("rbind", food_coping_group)
+
+food_coping_group_df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Food Coping Group**") %>% kable_styling(position = "center")
+
+
+cp_issues_group<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+
+  a <- grep('cp_issues_group', d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  
+
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  cp_issues_group[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+cp_issues_group<-do.call("rbind", cp_issues_group)
+
+cp_issues_group %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Cp Issues Group**") %>% kable_styling(position = "center")
+
+
+
+information_services_group<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+
+# d$node<-gsub("\\[1]","",d$node)
+
+  a <- grep('information_services_group', d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>%
+    select(start)
+  start_question<-min(start_question$start)
+
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>%
+    select(end)
+  end_question<-max(end_question$end)
+
+
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  information_services_group[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)}
+
+information_services_group<-do.call("rbind", information_services_group)
+
+information_services_group %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**Information Services Group**") %>% kable_styling(position = "center")
+
+
+satisfaction_before_covid_group<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+
+# d$node<-gsub("\\[1]","",d$node)
+
+  a <- grep('satisfaction_before_covid_group', d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>%
+    select(start)
+  start_question<-min(start_question$start)
+
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>%
+    select(end)
+  end_question<-max(end_question$end)
+
+
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  satisfaction_before_covid_group[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)}
+
+satisfaction_before_covid_group<-do.call("rbind", satisfaction_before_covid_group)
+
+satisfaction_before_covid_group %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**satisfaction_before_covid_group**") %>% kable_styling(position = "center")
+
+
+satisfaction_since_covid_group<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+
+# d$node<-gsub("\\[1]","",d$node)
+
+  a <- grep('satisfaction_since_covid_group', d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>%
+    select(start)
+  start_question<-min(start_question$start)
+
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>%
+    select(end)
+  end_question<-max(end_question$end)
+
+
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  satisfaction_since_covid_group[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)}
+
+satisfaction_since_covid_group<-do.call("rbind", satisfaction_since_covid_group)
+
+satisfaction_since_covid_group %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**satisfaction_since_covid_group**") %>% kable_styling(position = "center")
+
+  
+rank_priority_needs<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+
+  a <- grep('rank_priority_needs', d$node, value=TRUE)
+  start_question <- d %>% filter(node== a[1] & !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  
+  end_question<-d %>% filter(node== a[length(a)] & !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  
+
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  rank_priority_needs[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+rank_priority_needs<-do.call("rbind", rank_priority_needs)
+
+rank_priority_needs %>% kable( longtable = T, booktabs = T, linesep = "",caption= "**rank_priority_needs**") %>% kable_styling(position = "center")
+
+
+```

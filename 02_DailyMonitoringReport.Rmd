@@ -1,0 +1,1100 @@
+---
+title: "`r title`"
+author: "BGD GIS DATA UNIT"
+date: "`r format(Sys.time(), '%d %B, %Y %H:%M')`"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+---
+
+```{r setup, include=FALSE, warning = FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message=FALSE,
+                      warning = FALSE)
+
+
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(lubridate)
+library(rgdal)
+library(butteR)
+library(kableExtra)
+library(gsubfn)
+library(stringi)
+library(sf)
+library(data.table)
+source("functions/GIS_Project_Functions.R")
+source("functions/Load_Audit.R")
+source("scripts/active_path.R")
+# source("functions/analyze_by_enumerator.R")
+p <- function(v) {
+  Reduce(f=paste, x = v)
+}
+
+
+
+
+hh<-read.csv(hh_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA)) 
+hh_join_enu <- hh %>% select(c("X_uuid","enumerator_id"))
+# names(hh_join_enu) <- str_replace_all(names(hh_join_enu),"X_uuid","X_submission__uuid")
+indv<-read.csv(indv_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA)) %>%  mutate(
+   need_trt_byt_not_regular =ind_need_treatment == "yes" & treatment_type != "regular_check_up"
+  
+)
+
+
+
+if (population != "refugee") {
+  indv <- indv %>% mutate(
+     no_learning = ind_formal_learning == "none" & ind_nonformal_learn == "none"
+  ) }
+if (population == "refugee") {
+  indv <- indv %>% mutate(
+     no_learning = ind_ed_TLC == "none" & ind_ed_madrassa == "none" & ind_ed_nonformal != "none"
+  ) }
+  
+
+names(indv) <- str_replace_all(names(indv),"X_submission__uuid","X_uuid")
+
+
+
+indv_summarise <- indv %>% group_by(X_uuid) %>% summarise(
+  treatment_sought_no = if_else(all(treatment_sought == "no" | is.na(treatment_sought)),"no","yes",NULL),
+  treatment_sought_no_at_least_one = if_else(any(treatment_sought == "no"),"yes","no","no"),
+  # treatment_sought_yes = if_else(all(treatment_sought == "yes"),"yes","no"),
+  treatment_sought_yes_at_least_one = if_else(any(treatment_sought == "yes"),"yes","no"),
+  number_need_treatment = sum(ind_need_treatment == "yes",na.rm = T),
+  treatment_remotely_from_doctor = if_else(all(treatment_location.remotely_from_doctor == 0 | is.na(treatment_location.remotely_from_doctor)),0,1),
+  why_no_trtmnt_cvd_at_hlth_cntr_no =     if_else(all(ind_why_notreatment.fear_of_contracting_covid_19_at_the_health_center == 0),0,1),
+ why_no_trtmnt_not_available = if_else(all(ind_why_notreatment.treatment_not_available== 0),0,1),
+  why_no_trtmnt_for_other_than_covid = if_else(all(ind_why_notreatment.no_treatment_accessible_at_health_center_for_diseases_other_than_covid_19 == 0),0,1),
+ why_no_trtmnt_for_fear_of_cvd_pstv =if_else(any(ind_why_notreatment.fear_of_what_to_expect_when_tested_positive_for_covid_19 == 0),0,1),
+ 
+  # why_no_trtmnt_for_fear_of_cvd_pstv_yes =if_else(all(ind_why_notreatment.fear_of_what_to_expect_when_tested_positive_for_covid_19 == 1),1,0),
+  
+  treatment_type_covid_testing = if_else(any(treatment_type=="covid_19_testing"),"yes","no"),
+ treatment_type_covid_testing_all_no = if_else(all(treatment_type !="covid_19_testing",na.rm = T),"yes","no"),
+ treatment_type_treatment_for_other_illness = if_else(any(treatment_type=="treatment_for_other_illness",na.rm = T),"yes","no"),
+  treatment_type_treatment_for_other_illness_all_no = if_else(all(treatment_type!="treatment_for_other_illness",na.rm = T),"yes","no"),
+ treatment_type_treatment_for_other_all_no = if_else(all(treatment_type!="other",na.rm = T),"yes","no"),
+ 
+  why_no_trtmnt_no_female_staff_health =if_else(all(ind_why_notreatment.no_female_staff_health == 0),0,1),
+  why_no_trtmnt_no_gender_segregation=if_else(all(ind_why_notreatment.no_gender_segregation_health == 0),0,1),
+ ind_age_6_to_59_mnth = if_else(any(individual_age %in% 0:5),"yes","no",NULL),
+ no_learning_sumarise = if_else(all(no_learning == 1,na.rm = T),1,0),
+ need_trt_byt_not_regular_summaries = if_else(any(need_trt_byt_not_regular == 1,na.rm = T),"yes","no"),
+ child_nutrition_screened_summarise = if_else(any(child_nutrition_screened == "yes",na.rm = T),"yes","no")
+ 
+  )
+
+
+hh_join_final <- hh %>% left_join(indv_summarise)
+
+hh_join_final$income_source <-  str_replace_all(hh_join_final$income_source," ",",")
+
+ind_trt_lction <- indv  %>% filter(!is.na(treatment_location)) %>% 
+  group_by(X_uuid) %>% mutate(
+    treatment_location_con = p(treatment_location)) 
+
+trt_xuuid<- ind_trt_lction$X_uuid %>% unique()
+list2 <- list()
+for(i in trt_xuuid){
+  list2[[i]]<-  (ind_trt_lction %>% filter(X_uuid == i))[1,]
+}
+ind_trt_lction_df <- do.call("rbind",list2) %>% select(X_uuid,treatment_location_con)
+ind_trt_lction_df$treatment_location_con <- str_replace_all(ind_trt_lction_df$treatment_location_con," ",",\n")
+
+
+ind_trt_typ <- indv  %>% filter(!is.na(treatment_type)) %>% 
+  group_by(X_uuid) %>% mutate(
+    treatment_type_con = p(treatment_type)) 
+
+trt_typ_xuuid<- ind_trt_typ$X_uuid %>% unique()
+list3 <- list()
+for(i in trt_typ_xuuid){
+  list3[[i]]<-  (ind_trt_typ %>% filter(X_uuid == i))[1,]
+}
+ind_trt_typ_df <- do.call("rbind",list3) %>% select(X_uuid,treatment_type_con)
+ind_trt_typ_df$treatment_type_con <- str_replace_all(ind_trt_typ_df$treatment_type_con," ",",\n")
+
+
+# SampleSize<- read.csv(samples_required_data_path, stringsAsFactors = FALSE,na.strings=c("", " ", NA))
+
+
+  
+#REQUIRED ONLY THE FIRST DAY OF DATA COLLECTION
+###########################################################
+# hh_join_final$reported_date<-day_to_run
+# date_log_full<- hh_join_final %>% select(X_uuid, reported_date)
+# write.csv(date_log_full,paste0(date_log_path,"date_log.csv"), row.names=FALSE)
+#############################################################
+
+ date_log<-read.csv(paste0(date_log_path,"date_log.csv"), stringsAsFactors = FALSE,
+                    na.strings = c("", " ", NA))
+# if(population == "refugee"){
+ date_log$reported_date <-ymd(date_log$reported_date)
+ # }
+
+#  if(population == "host"){
+# date_log$reported_date <- dmy(date_log$reported_date)}
+
+hh_join_final<-hh_join_final %>% dplyr::left_join(date_log, by= "X_uuid")
+
+hh_join_final$reported_date <- if_else(is.na(hh_join_final$reported_date), day_to_run, hh_join_final$reported_date)
+
+
+ date_log_full<- hh_join_final %>% select(X_uuid,reported_date)
+
+
+if(write_output == "yes"){
+ write.csv(date_log_full,paste0(date_log_path,str_replace_all(day_to_run,"-","_"),"_date_log.csv"), row.names=FALSE)
+ write.csv(date_log_full,paste0(date_log_path,"date_log.csv"), row.names=FALSE)
+}
+
+ hh_join_final2 <- hh_join_final %>% filter(informed_consent == "yes")
+  hh_join_final <- hh_join_final %>% filter(informed_consent == "yes",reported_date == day_to_run)
+```
+
+## Duration
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+audit_yes<-Load_Audit(data=hh_join_final, 
+                      path.to.zip = audit_zipfile,
+                      path.to.unzip = path_unzip,
+                      copy.zip = TRUE,
+                      path.to.copy.zip = copy_zip_to,
+                      delete.unzipped=TRUE
+                      )
+
+
+dfl<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+
+  start_question <- d %>% filter(node==paste0(audit_node,"informed_consent")& !is.na(event)) %>% 
+    select(end) 
+  start_question<-min(start_question$end)
+  end_question<-d %>% filter(node==paste0(audit_node,"consent_received/end_note")& !is.na(node)) %>% 
+    select(end)
+  if(population == "refugee"){
+      end_question<-d %>% filter(node==paste0(audit_node,"end_note")& !is.na(node)) %>% 
+    select(end)
+  }
+  end_question<-max(end_question$end)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  dfl[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+duration_df2<-do.call("rbind", dfl)
+survey_time <- duration_df2 %>% filter(duration_minutes <20)
+
+survey_time <- survey_time %>% left_join(hh_join_final %>% select(reported_date,enumerator_id,respondent_id,X_uuid ),by = c("uuid"="X_uuid")) %>% select(reported_date,enumerator_id,respondent_id,everything()) %>% arrange(reported_date)
+
+mean_survey_time <- mean(duration_df2$duration_minutes,na.rm = T)
+median_survey_time <- median(duration_df2$duration_minutes,na.rm = T)
+
+paste0("Mean Survey Time- ", mean_survey_time,"<p>")
+paste0("Median Survey Time- ",median_survey_time,"<p>")
+
+
+survey_time %>% kable( longtable = T, booktabs = T, linesep = "",caption= "surveys which are completed in less than 20 min") %>% kable_styling(position = "center")
+
+# disability_hist <- hist(disability_time$duration_minutes,xlab = "Minutes")
+
+
+
+# ggplot(disability_time, aes(duration_minutes)) +
+#   geom_histogram(binwidth = 0.01)
+
+# disibility_time %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Proportion of each response option by enumerator ID)") %>% kable_styling(position = "center")
+
+```
+## Enumerator Tracking
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+consent_proportion <- hh %>% select(c("informed_consent","enumerator_id"))
+
+consent_proportion_table<- consent_proportion %>% group_by(enumerator_id) %>% summarise(
+total_survey = n(),
+yes = sum(informed_consent== "yes"),
+no = sum(informed_consent== "no"),
+child_headed_household  = sum(informed_consent== "child_headed_household"),
+nobody_answering  = sum(informed_consent== "nobody_answering"),
+inactive_sim  = sum(informed_consent== "inactive_sim"),
+not_eligible_for_interview = sum(informed_consent== "not_eligible_for_interview"))
+ 
+ col_name <- consent_proportion$informed_consent %>% unique()
+consent_proportion_table <-consent_proportion_table%>% mutate(
+  row_sum = rowSums(consent_proportion_table[col_name]),
+  percent_yes = yes/row_sum*100,
+  percent_sim_inactive = inactive_sim/row_sum*100,
+  percent_no = no/row_sum*100,
+  percent_child_headed_household = child_headed_household/row_sum*100,
+  percent_nobody_answering  = nobody_answering /row_sum*100,
+  percent_not_eligible_for_interview = not_eligible_for_interview/row_sum*100,
+) %>% select(c("enumerator_id","total_survey",dplyr::starts_with("percent")))
+
+
+
+consent_proportion_table %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Proportion of each response option by enumerator ID)") %>% kable_styling(position = "center")
+
+
+```
+
+
+
+
+## Disability
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+df3<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  
+# d$node<-gsub("\\[1]","",d$node)
+
+  start_question <- d %>% filter(node==paste0(audit_node,"consent_received/disability_seeing")& !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  end_question<-d %>% filter(node==paste0(audit_node,"consent_received/disability_speaking")& !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  df3[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+duration_df3<-do.call("rbind", df3)
+
+disability_time <- duration_df3 %>% filter(duration_minutes<1|duration_minutes>5)
+
+disability_time <- disability_time %>% left_join(hh_join_final %>% select(reported_date,enumerator_id,respondent_id,X_uuid ),by = c("uuid"="X_uuid")) %>% select(reported_date,enumerator_id,respondent_id,everything()) %>% arrange(reported_date)
+
+disability_time %>% kable( longtable = T, booktabs = T, linesep = "",caption= "•	Duration of disability questions ") %>% kable_styling(position = "center")
+
+colnams <- c("disability_seeing","disability_hearing","disability_walking","disability_remembering",
+             "disability_self_care","disability_speaking")
+
+
+for(i in colnams){
+  col <- paste0("i.",i)
+  hh_join_final[[col]] <- if_else(hh_join_final[[i]] != "no_difficulty",i,NULL)
+  
+}
+
+disablity_rowsum_col <- hh_join_final %>% select(c(starts_with("i.dis"))) %>%  colnames()
+hh_join_final <- hh_join_final %>% mutate(
+  i.disablity_rowsum = rowSums(!is.na(hh_join_final[disablity_rowsum_col]),na.rm = T) ,
+) %>% mutate(
+  disability_name_list = paste(i.disability_seeing,i.disability_hearing,i.disability_walking,
+                                i.disability_remembering,i.disability_self_care,i.disability_speaking
+                                )
+)
+hh_join_final$disability_name_list <- str_replace_all(hh_join_final$disability_name_list,"NA","")  %>% trimws()
+hh_join_final$disability_name_list <- str_replace_all(hh_join_final$disability_name_list," ",",")
+
+ disability<- hh_join_final %>% filter(
+   i.disablity_rowsum > 3
+)%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","hh_size","disability_name_list")) %>% arrange(reported_date)
+ 
+
+ disability %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where more than hh_size disibility are selected") %>% kable_styling(position = "center")
+
+```
+
+## shelter
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+shelter_improvement_and_issuse <-hh_join_final %>% filter( 
+  (improvement.repaired_door== 1 & (shelter_issues.door_window_broken ==0 & shelter_issues.water_floods_in_the_shelter ==0 ))|
+  (improvement.repaired_the_roof == 1 & (shelter_issues.issues_with_the_roof == 0 & shelter_issues.water_floods_in_the_shelter ==0))|
+  (improvement.upgraded_the_plinth == 1 & (shelter_issues.the_floor_plinth == 0 & shelter_issues.water_floods_in_the_shelter ==0)) |
+  (improvement.replaced_some_of_the_materials == 1 & (shelter_issues.damaged_rotting_materials ==0 & shelter_issues.water_floods_in_the_shelter ==0))|
+  (improvement.added_partitions_to_divide_the_internal_space==1 & (shelter_issues.not_have_enough_privacy == 0 & shelter_issues.water_floods_in_the_shelter ==0))|
+  (improvement.can_now_be_locked_from_inside_or_outside == 1 & (shelter_issues.cant_lock_the_shelter == 0 & shelter_issues.water_floods_in_the_shelter ==0))|
+  (improvement.built_a_kitchen_area == 1 & (shelter_issues.unable_to_conduct_regular_activities == 0 & shelter_issues.water_floods_in_the_shelter ==0))|
+  (improvement.built_a_bathing_space == 1 & (shelter_issues.unable_to_conduct_regular_activities == 0 & shelter_issues.water_floods_in_the_shelter ==0))|
+  (improvement.fixed_drainage_around_the_shelter ==1 & (shelter_issues.water_floods_in_the_shelter == 0 & shelter_issues.water_floods_in_the_shelter ==0)) |
+  (improvement.improved_access_to_the_shelter == 1 & (shelter_issues.shelter_is_hard_to_access == 0 & shelter_issues.water_floods_in_the_shelter ==0))
+) %>% mutate(
+  improv.repaired_the_roof = improvement.repaired_the_roof == 1 & (shelter_issues.issues_with_the_roof == 0 & shelter_issues.water_floods_in_the_shelter ==0),
+  improv.upgraded_the_plinth = improvement.upgraded_the_plinth == 1 & (shelter_issues.the_floor_plinth == 0 & shelter_issues.water_floods_in_the_shelter ==0),
+  improv.replaced_some_of_the_materials = improvement.replaced_some_of_the_materials == 1 & (shelter_issues.damaged_rotting_materials == 0 & shelter_issues.water_floods_in_the_shelter ==0),
+  improv.added_partitions_to_divide_the_internal_space = improvement.added_partitions_to_divide_the_internal_space==1 & (shelter_issues.not_have_enough_privacy == 0 & shelter_issues.water_floods_in_the_shelter ==0),
+  improv.can_now_be_locked_from_inside_or_outside = improvement.can_now_be_locked_from_inside_or_outside == 1 & (shelter_issues.cant_lock_the_shelter == 0 & shelter_issues.water_floods_in_the_shelter ==0),
+  improv.built_a_kitchen_area  = improvement.built_a_kitchen_area == 1 & (shelter_issues.unable_to_conduct_regular_activities == 0 & shelter_issues.water_floods_in_the_shelter ==0),
+  improv.built_a_bathing_space = improvement.built_a_bathing_space == 1 & (shelter_issues.unable_to_conduct_regular_activities == 0 & shelter_issues.water_floods_in_the_shelter ==0),
+  improv.fixed_drainage_around_the_shelter = improvement.fixed_drainage_around_the_shelter ==1 &( shelter_issues.water_floods_in_the_shelter == 0 & shelter_issues.water_floods_in_the_shelter ==0),
+  improv.improved_access_to_the_shelter = improvement.improved_access_to_the_shelter == 1 &( shelter_issues.shelter_is_hard_to_access == 0 & shelter_issues.water_floods_in_the_shelter ==0),
+  improv.repaired_door =improvement.repaired_door== 1 & (shelter_issues.door_window_broken ==0 & shelter_issues.water_floods_in_the_shelter ==0)
+) %>% select(c("enumerator_id","X_uuid",starts_with("improv.")))
+
+if(nrow(shelter_improvement_and_issuse)>0){
+shelter_improvement_and_issuse[shelter_improvement_and_issuse == 0] <- NA
+shelter_improvement_and_issuse <- gather(shelter_improvement_and_issuse,c(3:(ncol(shelter_improvement_and_issuse))),key = "improvement",value = "flagged")
+
+shelter_improvement_and_issuse <- shelter_improvement_and_issuse%>% filter(!is.na(flagged)) 
+
+shelter_improvement_and_issuse$improvement <- str_replace_all(shelter_improvement_and_issuse$improvement, "improv.","improvement." ) 
+
+shelter_improvement_and_issuse <- shelter_improvement_and_issuse %>% mutate(
+  shelter_issue  = 
+if_else(improvement == "improvement.repaired_the_roof","shelter_issues.issues_with_the_roof",
+if_else(improvement == "improvement.upgraded_the_plinth","shelter_issues.the_floor_plinth",
+if_else(improvement == "improvement.replaced_some_of_the_materials","shelter_issues.damaged_rotting_materials",
+if_else(improvement == "improvement.added_partitions_to_divide_the_internal_space","shelter_issues.not_have_enough_privacy",
+if_else(improvement == "improvement.can_now_be_locked_from_inside_or_outside","shelter_issues.cant_lock_the_shelter",
+if_else(improvement == "improvement.built_a_kitchen_area","shelter_issues.unable_to_conduct_regular_activities",
+if_else(improvement == "improvement.improvement.d_access_to_the_shelter","shelter_issues.shelter_is_hard_to_access",
+if_else(improvement == "improvement.built_a_bathing_space","shelter_issues.unable_to_conduct_regular_activities",
+if_else(improvement == "improvement.repaired_door","shelter_issues.door_window_broken",
+if_else(improvement == "improvement.fixed_drainage_around_the_shelter","shelter_issues.water_floods_in_the_shelter","ERROR"))))))))))) %>% select(-"flagged")
+
+shelter_improvement_and_issuse <- shelter_improvement_and_issuse %>% left_join(hh_join_final,by = "X_uuid")
+
+shelter_improvement_and_issuse <- shelter_improvement_and_issuse %>% select(c("reported_date","respondent_id","enumerator_id.x", "X_uuid",	"shelter_issues","improvement.y","shelter_issues.door_window_broken")) %>% arrange(reported_date)
+
+shelter_improvement_and_issuse$shelter_issues <- str_replace_all(shelter_improvement_and_issuse$shelter_issues," ",",")
+
+shelter_improvement_and_issuse$improvement.y <- str_replace_all(shelter_improvement_and_issuse$improvement.y," ",",")
+
+shelter_improvement_and_issuse%>% kable( longtable = T, booktabs = T, linesep = "",caption= "2.	Surveys where enumerator reported yes to shelter improvement but no corresponding shelter issue") %>% kable_styling(position = "center")
+}
+
+
+shelter_modality_shelter_issue <- hh_join_final %>% filter((shelter_mobility.no_issues == 1 | shelter_mobility.dont_know == 1) & shelter_issues.shelter_is_hard_to_access == 1 ) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","shelter_mobility.no_issues","shelter_mobility.dont_know","shelter_issues.shelter_is_hard_to_access")) %>% arrange(reported_date)
+
+shelter_modality_shelter_issue %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where shelter_mobility is No issues OR shelter_mobility is Don't know/prefer not to answer AND shelter_issues is Yes, shelter is hard to access") %>% kable_styling(position = "center")
+
+
+
+
+shelter_issues_cols <- hh_join_final %>% select(starts_with("shelter_issues.")) %>% colnames()
+hh_join_final$i.shelter_issues_rowsum <- rowSums(hh_join_final[shelter_issues_cols],na.rm = T)
+
+shelter_issue_more_than5 <- hh_join_final %>% filter(
+  i.shelter_issues_rowsum > 5
+)%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid")) %>% arrange(reported_date)
+
+ shelter_issue_more_than5 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where more than 5 shelter_issue are selected") %>% kable_styling(position = "center")
+
+
+if (population == "refugee"){
+
+infra_change <- hh_join_final %>% filter(
+  (camp_infra_change == "improve" & camp_infrastructure_maintenance == "did_not_go_well")|
+    (camp_infra_change == "got_worse" & camp_infrastructure_maintenance == "went_well")
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","camp_infra_change","camp_infrastructure_maintenance")) %>% arrange(reported_date)
+
+infra_change %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where camp_infra_change is improve/got worse OR camp_infrastructure_maintenance is did_not_go_well/went_well") %>% kable_styling(position = "center")
+}
+```
+
+## Education
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+if (population == "refugee"){
+not_to_school_reason <- hh_join_final %>% filter(
+  (not_send_back_to_school_reason.child_needed_at_home_to_help_family == 1 ) &
+  (remote_learning_challenges.children_needed_to_help_the_household == 0 &
+       no_remote_study_reason.children_needed_to_help_the_household == 0)) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","not_send_back_to_school_reason.child_needed_at_home_to_help_family","remote_learning_challenges.children_needed_to_help_the_household",
+             "no_remote_study_reason.children_needed_to_help_the_household")) %>% arrange(reported_date)
+names(not_to_school_reason) <- str_replace_all(names(not_to_school_reason),".children_needed_to_help_the_household","")
+names(not_to_school_reason) <- str_replace_all(names(not_to_school_reason),".child_needed_at_home_to_help_family","")
+
+not_to_school_reason %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where not_send_back_to_school_reason is Child needed at home to help family AND (remote_learning_challenges is NOT children needed to help the household AND no_remote_study_reason is NOT children needed to help the household)") %>% kable_styling(position = "center")
+
+education2 <- hh_join_final %>% filter(
+  school_children_total == 0 & (support_received_on_remote_learning_for_children == "did_not_go_well" | support_received_on_remote_learning_for_children == "went_well" | education_services_5 == "did_not_go_well" | education_services_5 == "went_well")
+) %>% select(c("respondent_id","enumerator_id","X_uuid","school_children_total","support_received_on_remote_learning_for_children","education_services_5"))
+
+education2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where school_children_total == 0 & (support_received_on_remote_learning_for_children == did_not_go_well | support_received_on_remote_learning_for_children == went_well | education_services_5 == did_not_go_well | education_services_5 == went_well)") %>% kable_styling(position = "center")
+
+}
+
+
+if (population != "refugee") {
+  education2 <- hh_join_final %>% filter(
+    school_children_total == 0 & (education_services_5 == "did_not_go_well" | education_services_5 == "went_well")
+  ) %>% select(c("respondent_id","enumerator_id","X_uuid", "school_children_total","education_services_5"))
+  
+education2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where school_children_total = 0 & (education_services_5 = did_not_go_well | education_services_5 = went_well)") %>% kable_styling(position = "center")
+}
+
+
+```
+
+## Health Coping
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+
+pay_for_health_care <-  hh_join_final %>% filter(
+ (health_care.yes_covid == 1 | health_care.yes_other == 1) & (treatment_sought_no == "no" | is.na(treatment_sought_no) & death == "no")
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","health_care.yes_covid","health_care.yes_other","treatment_sought_no","death"))  %>% arrange(reported_date)
+
+pay_for_health_care %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where Pay for health care is Yes AND treatment_sought is No <p> **columns to check:** <p>_1.health_care_ <p>_2.treatment_sought_") %>% kable_styling(position = "center")
+
+
+
+pay_for_health_expenditure<- hh_join_final %>% filter(
+  (health_expenditures.yes_covid == 1 | health_expenditures.yes_other == 1)& 
+  ((treatment_sought_no == "no" |is.na(treatment_sought_no) & death == "no") | ( treatment_sought_yes_at_least_one == "yes" & debt_reason.cover_health_expenses == 0))
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","health_expenditures.yes_covid","health_expenditures.yes_other","debt_reason.cover_health_expenses","death","treatment_sought_no","treatment_sought_yes_at_least_one")) %>% arrange(reported_date)
+
+pay_for_health_expenditure %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where going into debt to pay for health expenditures is Yes AND (treatment_sought is No OR (treatment_sought is yes AND debt_reason is NOT To cover health expenses))<p> **columns to check:** <p>_1.health_expenditures_ <p>_2.treatment_sought_<p>_3.debt_reason.cover_health_expenses_") %>% kable_styling(position = "center")
+
+
+pay_for_services<- hh_join_final %>% filter(
+  (pay_for_services.yes_covid == 1 | pay_for_services.yes_other == 1)& 
+  ((treatment_sought_no == "no" |is.na(treatment_sought_no) & death == "no")| 
+     (treatment_sought_yes_at_least_one == "yes" & debt_reason.cover_health_expenses == 0))
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","pay_for_services.yes_covid","pay_for_services.yes_other","treatment_sought_no","death","treatment_sought_yes_at_least_one","debt_reason.cover_health_expenses")) %>% arrange(reported_date)
+
+pay_for_services %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where seeking community support to pay for health expenditures is Yes AND (treatment_sought is No OR (treatment_sought is yes AND debt_reason is NOT To cover health expenses))<p> **columns to check:** <p>_1.pay_for_services_ <p>_2.treatment_sought_<p>_3.debt_reason.cover_health_expenses_") %>% kable_styling(position = "center")
+
+
+home_treatment <- hh_join_final %>% filter(
+(lack_of_money_to_go_to_hospital.yes_covid == 1 | lack_of_money_to_go_to_hospital.yes_other == 1 )& treatment_sought_yes_at_least_one == "yes" & treatment_remotely_from_doctor == 0) %>% left_join(ind_trt_lction_df) %>%  select(c("reported_date","respondent_id","enumerator_id","X_uuid","lack_of_money_to_go_to_hospital.yes_covid","lack_of_money_to_go_to_hospital.yes_other","treatment_sought_yes_at_least_one","treatment_sought_no_at_least_one","treatment_remotely_from_doctor","treatment_location_con","death")) %>% arrange(reported_date)
+
+home_treatment %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where  Home treatment due to lack of money to go to hospital/clinic is Yes AND (treatment_sought is Yes AND treatment_location is NOT Remotely from doctor (e.g. Calling on mobile/facebook)<p> **columns to check:** <p>_1.lack_of_money_to_go_to_hospital_ <p>_2.treatment_sought_<p>_3.treatment_location.remotely_from_doctor_") %>% kable_styling(position = "center")
+
+  
+
+
+home_trtmnt_fr_covid <- hh_join_final %>% filter(
+  (home_treatment_due_to_fear.yes_covid == 1 | home_treatment_due_to_fear.yes_other ==1) & 
+  ((treatment_sought_yes_at_least_one == "yes" & treatment_remotely_from_doctor == 0)|
+     (treatment_sought_no == "no"& death == "no" & why_no_trtmnt_cvd_at_hlth_cntr_no == 0))
+)  %>% left_join(ind_trt_lction_df) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","home_treatment_due_to_fear.yes_covid","home_treatment_due_to_fear.yes_other","treatment_sought_yes_at_least_one","treatment_sought_no_at_least_one","death","treatment_sought_no","treatment_remotely_from_doctor","why_no_trtmnt_cvd_at_hlth_cntr_no","treatment_location_con")) %>% arrange(reported_date)
+
+home_trtmnt_fr_covid %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where Home treatment due to fear of contracting COVID-19 at hospital/clinic = Yes AND ((treatment_sought = Yes AND treatment_location is NOT Remotely from doctor (e.g. Calling on mobile/facebook)) OR (treatment_sought = No AND ind_why_notreatment is NOT Fear of contracting COVID-19 at the health center))<p> **columns to check:** <p>_1.home_treatment_due_to_fear_ <p>_2.treatment_sought_<p>_3.treatment_location.remotely_from_doctor_<p>_4.ind_why_notreatment.fear_of_contracting_covid_19_at_the_health_center_") %>% kable_styling(position = "center")
+
+
+
+treatment_due_to_inacces <-hh_join_final %>% filter(
+  (treatment_due_to_inaccessibility.yes_covid == 1 | treatment_due_to_inaccessibility.yes_other ==1)& 
+  (treatment_sought_yes_at_least_one =="yes" & treatment_remotely_from_doctor == 0)|
+  (treatment_sought_no == "no" & death == "no" & (why_no_trtmnt_not_available==0 |why_no_trtmnt_for_other_than_covid ==0))
+  )  %>% left_join(ind_trt_lction_df) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","treatment_due_to_inaccessibility.yes_covid","treatment_due_to_inaccessibility.yes_other","treatment_sought_yes_at_least_one","treatment_sought_no_at_least_one","death","treatment_remotely_from_doctor","treatment_sought_no","why_no_trtmnt_not_available","why_no_trtmnt_for_other_than_covid","treatment_location_con")) %>% arrange(reported_date)
+
+treatment_due_to_inacces %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where home treatment due to inaccessibility of treatment options for diseases other than COVID-19 = Yes AND ((treatment_sought = Yes AND treatment_location is NOT Remotely from doctor (e.g. Calling on mobile/facebook)) OR (treatment_sought = No AND ind_why_notreatment is NOT Treatment not available or No treatment accessible at health center for diseases other than COVID-19))<p> **columns to check:** <p>_1.treatment_due_to_inaccessibility_ <p>_2.treatment_sought_<p>_3.treatment_location.remotely_from_doctor_<p>_4.ind_why_notreatment.treatment_not_available_<p>_5.ind_why_notreatment.no_treatment_accessible_at_health_center_for_diseases_other_than_covid_19_") %>% kable_styling(position = "center")
+
+
+fear_of_what_to_expect <- hh_join_final %>% filter(
+    (fear_of_what_to_expect.yes_covid == 1 | fear_of_what_to_expect.yes_other ==1) &
+    (treatment_type_covid_testing == "no"| 
+       ((treatment_sought_yes_at_least_one == "yes" &  treatment_remotely_from_doctor == 0)|
+         (treatment_sought_no == "no"& death == "no" & why_no_trtmnt_for_fear_of_cvd_pstv == 0))))  %>% left_join(ind_trt_lction_df) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","fear_of_what_to_expect.yes_covid","fear_of_what_to_expect.yes_other","treatment_type_covid_testing","death","treatment_sought_yes_at_least_one","treatment_sought_no_at_least_one","treatment_remotely_from_doctor","treatment_location_con","treatment_sought_no","why_no_trtmnt_for_fear_of_cvd_pstv")) %>% arrange(reported_date)
+  
+  fear_of_what_to_expect %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where home treatment due to fear of what to expect if tested positive for COVID-19 at hospital/clinic = Yes AND (treatment_type is NOT COVID-19 testing/treatment OR ((treatment_sought = Yes AND treatment_location is NOT Remotely from doctor (e.g. Calling on mobile/facebook)) OR (treatment_sought = No AND reason_no_treatment is NOT Fear of what to expect when tested positive for COVID-19))<p> **columns to check:** <p>_1.fear_of_what_to_expect_ <p>_2.treatment_sought_<p>_3.treatment_type_<p>_4.treatment_location.remotely_from_doctor_<p>_5.ind_why_notreatment.fear_of_what_to_expect_when_tested_positive_for_covid_19_") %>% kable_styling(position = "center")
+
+                                                                                                            home_treatment_due_to_lack_of_fem_staff <- hh_join_final %>% filter(
+                                                                                                              (home_treatment_due_to_lack_of_fem_staff.yes_covid == 1 | home_treatment_due_to_lack_of_fem_staff.yes_other == 1) & 
+  (treatment_sought_yes_at_least_one =="yes" | 
+     (treatment_sought_no =="no" & death == "no" & (why_no_trtmnt_no_female_staff_health == 0 | why_no_trtmnt_no_gender_segregation == 0)))) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","home_treatment_due_to_lack_of_fem_staff.yes_covid","home_treatment_due_to_lack_of_fem_staff.yes_other","treatment_sought_no","death","why_no_trtmnt_no_female_staff_health","why_no_trtmnt_no_gender_segregation","treatment_sought_yes_at_least_one","treatment_sought_no_at_least_one"))  %>% arrange(reported_date)                                                           
+                                                                                                            home_treatment_due_to_lack_of_fem_staff %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where home treatment due to lack of female staff/gender segregated facilities = Yes AND (treatment_sought = Yes OR (treatment_sought = No AND ind_why_notreatment is NOT No female staff at the health facility or No gender segregation at the health facility))<p> **columns to check:** <p>_1.home_treatment_due_to_lack_of_fem_staff_<p>_2.treatment_sought_<p>_3.ind_why_notreatment.no_female_staff_health_<p>_4.ind_why_notreatment.no_gender_segregation_health_") %>% kable_styling(position = "center")
+                                                                                                                                                                                                                     other_reasons <- hh_join_final %>% filter(                                                                 (other_reasons.yes_covid == 1 | other_reasons.yes_other ==1) & treatment_sought_yes_at_least_one == "yes" & treatment_remotely_from_doctor == 0)  %>%  left_join(ind_trt_lction_df) %>%  select(c("reported_date","respondent_id","enumerator_id","X_uuid","other_reasons.yes_covid","other_reasons.yes_other","treatment_sought_yes_at_least_one","treatment_sought_no_at_least_one","treatment_remotely_from_doctor","death","treatment_location_con")) %>% arrange(reported_date)
+
+                                                                                                        other_reasons %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where home treatment for other reasons = Yes AND (treatment_sought = Yes AND treatment_location is NOT Remotely from doctor (e.g. Calling on mobile/facebook))<p> **columns to check:** <p>_1.other_reasons_ <p>_2.treatment_sought_ <p>_3.treatment_location.remotely_from_doctor_") %>% kable_styling(position = "center")
+
+                                                                                                          lower_quality <- hh_join_final %>% filter(
+(lower_quality.yes_covid == 1 | lower_quality.yes_other ==1 ) & treatment_sought_no == "no"& death == "no")  %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","death","lower_quality.yes_covid","lower_quality.yes_other","treatment_sought_no")) %>% arrange(reported_date)
+                                                                                                           lower_quality %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Seeking lower quality/cheaper health care and medication = Yes AND treatment_sought = No<p> **columns to check:** <p>_1.lower_quality_ <p>_2.treatment_sought_") %>% kable_styling(position = "center")
+
+no_treatment <- hh_join_final %>% filter(
+  (no_treatment.yes_covid == 1 | no_treatment.yes_other ==1) & treatment_sought_yes_at_least_one == "yes"
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","no_treatment.yes_covid","treatment_sought_yes_at_least_one","treatment_sought_no_at_least_one"))  %>% arrange(reported_date)
+
+no_treatment %>% kable( longtable = T, booktabs = T, linesep = "",caption= "No treatment at all = Yes AND treatment_sought = Yes<p> **columns to check:** <p>_1.no_treatment_ <p>_2.treatment_sought_") %>% kable_styling(position = "center")
+
+hlth_coping_cols <- c("health_care.yes_covid" , "health_care.yes_other" , "health_expenditures.yes_covid" , "health_expenditures.yes_other" , "pay_for_services.yes_covid" , "pay_for_services.yes_other" , "lower_quality.yes_covid" , "lower_quality.yes_other", "lack_of_money_to_go_to_hospital.yes_covid" , "lack_of_money_to_go_to_hospital.yes_other" , "home_treatment_due_to_fear.yes_covid" , "home_treatment_due_to_fear.yes_other" , "treatment_due_to_inaccessibility.yes_covid" , "treatment_due_to_inaccessibility.yes_other" , "fear_of_what_to_expect.yes_covid" , "fear_of_what_to_expect.yes_other" , "home_treatment_due_to_lack_of_fem_staff.yes_covid" , "home_treatment_due_to_lack_of_fem_staff.yes_other" , "other_reasons.yes_covid" , "other_reasons.yes_other" , "number_need_treatment")
+
+hlth_coping<- hh_join_final %>% filter(
+(health_care.yes_covid== 1 | health_care.yes_other== 1 | health_expenditures.yes_covid== 1 | health_expenditures.yes_other== 1 | pay_for_services.yes_covid== 1 | pay_for_services.yes_other== 1 | lower_quality.yes_covid== 1 | lower_quality.yes_other==1)&
+(lack_of_money_to_go_to_hospital.yes_covid== 1 | lack_of_money_to_go_to_hospital.yes_other== 1 | home_treatment_due_to_fear.yes_covid== 1 | home_treatment_due_to_fear.yes_other== 1 | treatment_due_to_inaccessibility.yes_covid== 1 | treatment_due_to_inaccessibility.yes_other== 1 | fear_of_what_to_expect.yes_covid== 1 | fear_of_what_to_expect.yes_other== 1 | home_treatment_due_to_lack_of_fem_staff.yes_covid== 1 | home_treatment_due_to_lack_of_fem_staff.yes_other== 1 | other_reasons.yes_covid== 1 | other_reasons.yes_other==1) &
+number_need_treatment < 2) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","death",hlth_coping_cols)) %>% arrange(reported_date)
+
+hlth_coping %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where home treatment and other options are selected") %>% kable_styling(position = "center")
+
+
+yes_covid <- hh_join_final %>% select(contains("yes_covid")) %>% colnames()
+
+yes_covid_list <- list()
+for (u in yes_covid) {
+  yes_covid_list[[u]] <- hh_join_final %>% filter(
+    get(u) == 1 & treatment_type_covid_testing_all_no == "yes"
+  )
+}
+yes_covid_list_df <- do.call("rbind",yes_covid_list) %>% select(c("enumerator_id","X_uuid"))  %>% as.data.table() %>% as.data.frame()
+
+unique_xuuid <- unique(yes_covid_list_df$X_uuid)
+yes_covid_list_df2 <- hh_join_final %>% filter(X_uuid %in%unique_xuuid) %>% select(c("enumerator_id","respondent_id","X_uuid","treatment_type_covid_testing_all_no","death",yes_covid))
+
+
+for(i in yes_covid){
+  col <- paste0("i.",i)
+  yes_covid_list_df2[[col]] <- if_else(yes_covid_list_df2[[i]] == 1,i,NULL)
+}
+yes_covid_list_df2 <- yes_covid_list_df2 %>% mutate(
+  yes_covid_list = paste(i.health_coping.yes_covid,i.health_care.yes_covid,                           
+                         i.health_expenditures.yes_covid, i.pay_for_services.yes_covid,                   
+                         i.lack_of_money_to_go_to_hospital.yes_covid,         i.home_treatment_due_to_fear.yes_covid,             
+                         i.treatment_due_to_inaccessibility.yes_covid,        i.fear_of_what_to_expect.yes_covid,                 
+                         i.home_treatment_due_to_lack_of_fem_staff.yes_covid, i.other_reasons.yes_covid,                      
+                         i.lower_quality.yes_covid,                           i.no_treatment.yes_covid,                          
+                         i.none.yes_covid))
+yes_covid_list_df2$yes_covid_list <- str_replace_all(yes_covid_list_df2$yes_covid_list,"NA","") %>% trimws() 
+yes_covid_list_df2$yes_covid_list <- str_replace_all(yes_covid_list_df2$yes_covid_list," ",",") 
+
+yes_covid_list_df2<- yes_covid_list_df2 %>% select(c("respondent_id","enumerator_id","X_uuid","treatment_type_covid_testing_all_no","yes_covid_list","death"))
+
+yes_covid_list_df2 <- yes_covid_list_df2 %>% left_join(ind_trt_typ_df)
+
+
+
+yes_other <- hh_join_final %>% select(contains("yes_other")) %>% colnames()
+
+yes_other_list <- list()
+for (u in yes_other) {
+  yes_other_list[[u]] <- hh_join_final %>% filter(
+    get(u) == 1 & treatment_type_treatment_for_other_illness_all_no == "yes" & treatment_type_treatment_for_other_all_no == "yes"
+  )
+}
+yes_other_list_df <- do.call("rbind",yes_other_list) %>% select(c("enumerator_id","X_uuid"))  %>% as.data.table() %>% as.data.frame()
+
+unique_xuuid2 <- unique(yes_other_list_df$X_uuid)
+yes_other_list_df2 <- hh_join_final %>% filter(X_uuid %in%unique_xuuid2) %>% select(c("reported_date","enumerator_id","respondent_id","X_uuid","treatment_type_treatment_for_other_illness_all_no","treatment_type_treatment_for_other_all_no","death",yes_other))
+
+
+for(i in yes_other){
+  col <- paste0("i.",i)
+  yes_other_list_df2[[col]] <- if_else(yes_other_list_df2[[i]] == 1,i,NULL)
+}
+yes_other_list_df2 <- yes_other_list_df2 %>% mutate(
+  yes_other_list = paste(
+  i.health_coping.yes_other,                        i.health_care.yes_other ,                         
+  i.health_expenditures.yes_other,                   i.pay_for_services.yes_other,                       
+  i.lack_of_money_to_go_to_hospital.yes_other         ,i.home_treatment_due_to_fear.yes_other,             
+ i.treatment_due_to_inaccessibility.yes_other        ,i.fear_of_what_to_expect.yes_other,                 
+ i.home_treatment_due_to_lack_of_fem_staff.yes_other ,i.other_reasons.yes_other,                          
+i.lower_quality.yes_other                     ,i.no_treatment.yes_other,                           
+i.none.yes_other ))
+
+
+yes_other_list_df2$yes_other_list <- str_replace_all(yes_other_list_df2$yes_other_list,"NA","") %>% trimws() 
+yes_other_list_df2$yes_other_list <- str_replace_all(yes_other_list_df2$yes_other_list," ",",") 
+
+yes_other_list_df2<- yes_other_list_df2 %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","treatment_type_treatment_for_other_illness_all_no","yes_other_list","death"))
+
+yes_other_list_df2 <- yes_other_list_df2 %>% left_join(ind_trt_typ_df)
+
+yes_covid_list_df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where any of the health coping mechanismsare are yes_covid AND treatment_type is NOT covid_19_testing for ANY individual") %>% kable_styling(position = "center")
+
+yes_other_list_df2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where any of the health coping mechanisms are yes_other AND treatment_type is NOT treatment_for_other_illness for ANY individual") %>% kable_styling(position = "center")
+
+ 
+face_mask <- hh_join_final %>% filter(
+  (masks_use == "yes" & preventative_action.wearing_facemasks == 0 )|
+  (masks_use == "no" & preventative_action.wearing_facemasks == 1 )
+    ) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","masks_use","preventative_action.wearing_facemasks")) %>% arrange(reported_date)
+  face_mask %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where masks_use = yes AND preventative_action is NOT wearing_facemasks OR masks_use = no and preventative_action = wearing_facemasks") %>% kable_styling(position = "center")
+
+```
+
+## Nuitrition  
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+child_enrolment_nfp_nutrition_screened<-indv %>% filter(child_enrolment_nfp == child_nutrition_screened, child_enrolment_nfp != child_nutrition_screened)
+
+
+child_enrolment_nfp_nutrition_screened <- child_enrolment_nfp_nutrition_screened %>% left_join(hh_join_final) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid", "child_enrolment_nfp","child_nutrition_screened")) %>% arrange(reported_date)
+
+
+child_enrolment_nfp_nutrition_screened%>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where child_enrolment_nfp and child_nutrition_screened is not same ") %>% kable_styling(position = "center")
+
+
+if (population == "refugee") {
+nutrition_pack <- hh_join_final %>% filter(
+  (nutrition_pack == "no" & (plw_enrolment_nfp >0 | child_enrolment_nfp_total > 0) & nutrition_barriers.nutrition_access_no_difficulties == 0 )|
+  (nutrition_pack == "yes" & (plw_enrolment_nfp == 0 | is.na(plw_enrolment_nfp))& (child_enrolment_nfp_total == 0 |  is.na(child_enrolment_nfp_total)))
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","nutrition_pack","plw_enrolment_nfp","child_enrolment_nfp_total","nutrition_barriers.nutrition_access_no_difficulties")) %>% arrange(reported_date)
+
+nutrition_pack %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where nutrition_pack = No AND (plw_enrolment_nfp > 0 OR child_enrolment_nfp_total>0) AND nutrition_barriers.nutrition_access_no_difficulties = 0 OR if nutrition_pack = Yes AND ((plw_enrolment_nfp = 0 OR No Data) OR (child_enrolment_nfp_total=0 OR No Data)") %>% kable_styling(position = "center")
+}
+
+if (population != "refugee") {
+nutrition_pack <- hh_join_final %>% filter(
+  (nutrition_pack == "no" & child_enrolment_nfp_total >0 & nutrition_barriers.nutrition_access_no_difficulties == 0 )|
+  (nutrition_pack == "yes" & (child_enrolment_nfp_total == 0 |  is.na(child_enrolment_nfp_total)))
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","nutrition_pack","child_enrolment_nfp_total","nutrition_barriers.nutrition_access_no_difficulties")) %>% arrange(reported_date)
+
+nutrition_pack %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where nutrition_pack = No AND (plw_enrolment_nfp > 0 OR child_enrolment_nfp_total>0) AND nutrition_barriers.nutrition_access_no_difficulties = 0 OR nutrition_pack = Yes AND (child_enrolment_nfp_total=0 OR No Data)" ) %>% kable_styling(position = "center")
+}
+
+
+nuitrition_1 <- hh_join_final %>%  filter(
+nutrition_barriers.nutrition_access_not_referred_child == 1 & 
+  (child_nutrition_screened_summarise == "yes" | ind_age_6_to_59_mnth == "no"))%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","nutrition_barriers.nutrition_access_not_referred_child","child_nutrition_screened_summarise","ind_age_6_to_59_mnth"))  %>% arrange(reported_date)
+
+nuitrition_1 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where nutrition_barriers = Child was not screened at household level so was not referred for enrolment AND (child_nutrition_screened = Yes for all children (6-59) OR no child between 6 and 59 months in HH<p> **columns to check:** <p>_1.nutrition_barriers.nutrition_access_not_referred_child_<p>_2.child_nutrition_screened_<p>_3.individual_age_") %>% kable_styling(position = "center")
+
+
+nuitrition_2 <- hh_join_final %>%  filter(
+nutrition_barriers.nutrition_access_not_eligible_child == 1 & 
+  (child_nutrition_screened_summarise == "no" | ind_age_6_to_59_mnth == "no"))%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","nutrition_barriers.nutrition_access_not_eligible_child","child_nutrition_screened_summarise","ind_age_6_to_59_mnth"))  %>% arrange(reported_date)
+
+nuitrition_2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where nutrition_barriers = Child was screened, but not eligible for referral AND (child_nutrition_screened = No for all children (6-59) OR no child between 6 and 59 months in HH)<p>**columns to check:** <p>_1.child_nutrition_screened_<p>_2.indivual_age_<p>_3.nutrition_barriers.nutrition_access_not_eligible_child_") %>% kable_styling(position = "center")
+
+#child_nutrition_screened, indivual_age ,nutrition_barriers.nutrition_access_not_eligible_child  
+
+
+nuitrition_3 <- hh_join_final %>%  filter(
+nutrition_barriers.nutrition_access_refused_child == 1 & 
+  (child_nutrition_screened_summarise == "no" | ind_age_6_to_59_mnth == "no"))%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","nutrition_barriers.nutrition_access_refused_child","child_nutrition_screened_summarise","ind_age_6_to_59_mnth"))  %>% arrange(reported_date)
+
+nuitrition_3 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where nutrition_barriers = Caregiver brought the child to nutrition center after referral but centre refused to enroll after final crosschecking of measurement at centre AND (child_nutrition_screened = No for all children (6-59) OR no child between 6 and 59 months in HH <p>**columns to check:** <p>_1.child_nutrition_screened_<p>_2.indivual_age_<p>_3.nutrition_barriers.nutrition_access_refused_child_") %>% kable_styling(position = "center")
+
+#child_nutrition_screened, indivual_age ,nutrition_barriers.nutrition_access_refused_child
+
+
+
+nuitrition_4 <- hh_join_final %>%  filter(
+nutrition_barriers.nutrition_access_plw_no_anc == 1 & 
+  (!pregnant_woman > 0 & pregnant_women_anc > 0)) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","pregnant_women_anc","pregnant_woman","nutrition_barriers.nutrition_access_plw_no_anc"))  %>% arrange(reported_date)
+
+nuitrition_4 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where nutrition_barriers = PLWs were screened but not referred because of not having ANC/PNC card AND (pregnant_woman is NOT >0 and pregnant_women_anc >0)<p>**columns to check:** <p>_1.pregnant_woman_<p>_2.pregnant_women_anc_<p>_3.nutrition_barriers.nutrition_access_plw_no_anc_") %>% kable_styling(position = "center")
+
+#pregnant_woman, anc_card ,nutrition_barriers.nutrition_access_plw_no_anc
+
+nuitrition_5 <- hh_join_final %>%  filter(
+nutrition_barriers.nutrition_access_noone_available == 1 & 
+  ind_age_6_to_59_mnth == "no") %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","nutrition_barriers.nutrition_access_noone_available","ind_age_6_to_59_mnth"))  %>% arrange(reported_date)
+
+nuitrition_5 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where nutrition_barriers = No one available to bring child to nutrition facility for admission AND no child between 6 and 59 months in HH <p>**columns to check:** <p>_1.individual_age_<p>_2.nutrition_barriers.nutrition_access_noone_available_") %>% kable_styling(position = "center")
+
+# individual_age,nutrition_barriers.nutrition_access_noone_available
+
+nuitrition_6 <- hh_join_final %>%  filter(
+nutrition_barriers.nutrition_access_waiting_for_distribution == 1 & 
+  ind_age_6_to_59_mnth == "no") %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","nutrition_barriers.nutrition_access_waiting_for_distribution","ind_age_6_to_59_mnth"))  %>% arrange(reported_date)
+
+nuitrition_6 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where nutrition_barriers = Child already referred, caregiver waiting for distribution day AND no child between 6 and 59 months in HH<p>**columns to check:** <p>_1.individual_age_<p>_2.nutrition_barriers.nutrition_access_waiting_for_distribution_") %>% kable_styling(position = "center")
+
+# individual_age,nutrition_barriers.nutrition_access_waiting_for_distribution
+
+
+
+nuitrition_7 <- hh_join_final %>%  filter(
+nutrition_barriers.nutrition_access_woman_cannot_go_alone == 1 &
+  (!pregnant_woman > 0 | !lactating_women > 0)) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","nutrition_barriers.nutrition_access_woman_cannot_go_alone","pregnant_woman","lactating_women"))  %>% arrange(reported_date)
+
+nuitrition_7 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where nutrition_barriers = Woman cannot go alone to the nutrition center and no one is available to accompany her AND (pregnant_woman is NOT >0 OR lactating_women is NOT >0) <p>**columns to check:** <p>_1.pregnant_woman_<p>_2.lactating_women_<p>_3.nutrition_barriers.nutrition_access_woman_cannot_go_alone_") %>% kable_styling(position = "center")
+
+#pregnant_woman, lactating_women ,nutrition_barriers.nutrition_access_woman_cannot_go_alone
+
+
+
+nuitrition_8 <- hh_join_final %>%  filter(
+nutrition_barriers.nutrition_access_woman_turned_away == 1 & 
+  (!pregnant_woman > 0 & !lactating_women > 0)) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","nutrition_barriers.nutrition_access_woman_turned_away","pregnant_woman","lactating_women"))  %>% arrange(reported_date)
+
+nuitrition_8 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where nutrition_barriers = Woman has been turned away from the nutrition center AND (pregnant_woman is NOT >0 OR lactating_women is NOT >0) <p>**columns to check:** <p>_1.pregnant_woman_<p>_2.lactating_women_<p>_3.nutrition_barriers.nutrition_access_woman_turned_away_") %>% kable_styling(position = "center")
+
+#pregnant_woman, lactating_women ,nutrition_barriers.nutrition_access_woman_turned_away
+
+```
+
+## Expenditures Reduce
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+# expenditure_reduce1 <- hh_join_final %>% filter(
+#   expenditures_reduce.food ==1 & food_source.purchase_cash ==1
+# )%>% select(c("enumerator_id","X_uuid","expenditures_reduce.food","food_source.purchase_cash")) 
+
+reduced_nonessential_expense <- hh_join_final %>% filter(
+  reduced_nonessential_expenditures == "yes" & (expenditures_reduce.medical_expenses == 0 &  expenditures_reduce.clothing_shoes == 0 &  expenditures_reduce.shelter_materials == 0 &  expenditures_reduce.education == 0)) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","reduced_nonessential_expenditures","expenditures_reduce.medical_expenses","expenditures_reduce.clothing_shoes","expenditures_reduce.shelter_materials","expenditures_reduce.education")) %>% arrange(reported_date)
+
+reduced_expenses_on_inputs <- hh_join_final %>% filter(
+  reduced_expenses_on_inputs == "yes" & expenditures_reduce.livelihood_inputs == 0) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","reduced_expenses_on_inputs","expenditures_reduce.livelihood_inputs")) %>% arrange(reported_date)
+
+
+
+reduced_nonessential_expense %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where areduced_nonessential_expenditures = yes AND reduce_expenditure is NOT (medical_expenses OR clothing_shoes OR shelter_materials OR education)") %>% kable_styling(position = "center")
+
+reduced_expenses_on_inputs %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where reduced_expenses_on_inputs = yes AND expenditures_reduce is NOT livelihood_inputs") %>% kable_styling(position = "center")
+
+expenditure_reduce2 <- hh_join_final %>% filter(
+  expenditures_reduce.medical_expenses ==1 & (health_expenditures.yes_covid  == 1 | pay_for_services.yes_covid== 1 | health_expenditures.yes_other  == 1 | pay_for_services.yes_other == 1)
+)%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","expenditures_reduce.medical_expenses","health_expenditures.yes_covid","pay_for_services.yes_covid","health_expenditures.yes_other","pay_for_services.yes_other"))  %>% arrange(reported_date)
+
+expenditure_reduce3 <- hh_join_final %>% filter(
+  expenditures_reduce.shelter_materials ==1 & shelter_materials_source.purchased == 1
+)%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","expenditures_reduce.shelter_materials","shelter_materials_source.purchased"))  %>% arrange(reported_date)
+
+expenditure_reduce4 <- hh_join_final %>% filter(
+  expenditures_reduce.debt_repayment ==1 & (borrowed_money == "yes" | bought_items_on_credit == "yes")
+)%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","expenditures_reduce.debt_repayment","borrowed_money","bought_items_on_credit"))  %>% arrange(reported_date)
+
+
+if(population == "refugess"){
+expenditure_reduce5 <- hh_join_final %>% filter(
+  expenditures_reduce.rent==1 & (shelter_paid != "no_need" | shelter_paid != "dont_know")
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","expenditures_reduce.rent","shelter_paid"))  %>% arrange(reported_date)
+
+expenditure_reduce5 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where expenditures_reduce.rent is yes & (shelter_paid is NOT no_need OR shelter_paid is NOT dont_know)") %>% kable_styling(position = "center")}
+
+
+# expenditure_reduce1 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where Food = Yes AND food_sources=Purchase (cash)") %>% kable_styling(position = "center")
+
+expenditure_reduce2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where Medical expenses, health care, medicine = Yes AND (health_coping= 1. Pay for health care OR 2. Going into debt to pay for health expenditures)") %>% kable_styling(position = "center")
+
+expenditure_reduce3 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where Shelter materials (e.g. bamboo, rope, wire, tarpaulin, cement) = Yes AND shelter_materials_source= Purchased by household themselves") %>% kable_styling(position = "center")
+
+expenditure_reduce4 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where Debt repayment = Yes AND (livelihoods_coping = 6. Bought items on credit OR Borrowed money)") %>% kable_styling(position = "center")
+
+
+```
+
+
+## Livelihoods Coping
+
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+livelihood_cols <- c("selling_hh_goods","selling_jewelry",
+"spent_savings","bought_items_on_credit","borrowed_money","sold_productive_assets",
+"reduced_nonessential_expenditures","begging","depending_on_food_rations","reduced_expenses_on_inputs",
+"selling_firewood","selling_food_rations","selling_nfis",
+"selling_labor")
+hh_join_final$rowsum_livlihood <- rowSums(hh_join_final[livelihood_cols]== "yes",na.rm = T)
+
+livelihood_gtr_5 <- hh_join_final %>% filter(
+  rowsum_livlihood >5
+) %>% select(c("reported_date","enumerator_id","respondent_id","X_uuid","rowsum_livlihood",livelihood_cols)) %>% arrange(reported_date)
+
+livelihood_gtr_5_gth <- gather(livelihood_gtr_5,c(5:(ncol(livelihood_gtr_5))),key = "livelihood",value = "yn") %>% filter(yn == "yes")
+
+if(nrow(livelihood_gtr_5_gth)>0){
+livelihood_gtr_5_gth2 <- livelihood_gtr_5_gth %>% group_by(X_uuid) %>% mutate(
+  livelihood_list=p(livelihood)
+) %>% select(c("reported_date","X_uuid","enumerator_id","respondent_id","livelihood_list"))
+
+livelihood_gtr_5_gth2$livelihood_list <- str_replace_all(livelihood_gtr_5_gth2$livelihood_list," ",",\n")
+
+uuid_unique<- livelihood_gtr_5_gth2$X_uuid %>% unique()
+
+list <- list()
+for(i in uuid_unique){
+  list[[i]]<-  (livelihood_gtr_5_gth2 %>% filter(X_uuid == i))[1,]
+}
+livelihood <- do.call("rbind",list)
+
+livelihood %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where  more than 5 livelihoods coping mechanisms are selected") %>% kable_styling(position = "center")
+}
+
+selling_food_rations <- hh_join_final %>% filter(
+  selling_food_rations == "yes" & food_source.food_assistance_food_card == 0 & food_source.army_distributing_food == 0
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","selling_food_rations","food_source.food_assistance_food_card","food_source.army_distributing_food")) %>% arrange(reported_date)
+
+selling_food_rations %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where Selling, sharing and exchanging food rations = Yes AND food_source is NOT Food assistance (food card) and food_source is NOT army_distributing_food") %>% kable_styling(position = "center")
+
+
+
+selling_nfis<- hh_join_final %>% filter(
+  income_source.sales_of_assistance_items == 1 & (selling_nfis == "no" & selling_food_rations == "no")
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","selling_nfis","selling_food_rations","income_source.sales_of_assistance_items","income_source"))   %>% arrange(reported_date)
+
+
+
+selling_nfis %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where income_source.sales_of_assistance_items = 1 & (selling_food_rations = no & selling_nfis = no") %>% kable_styling(position = "center")
+
+
+
+spent_saving <- hh_join_final %>% filter(
+  spent_savings == "no" & income_source.savings == 1
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","spent_savings","income_source.savings","income_source")) %>% arrange(reported_date)
+
+
+spent_saving %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where Spent savings = no AND income_source is Savings") %>% kable_styling(position = "center")
+
+
+
+brwd_money <- hh_join_final %>% filter(
+  (bought_items_on_credit == "no" & borrowed_money == "no") & (health_expenditures.yes_covid  == 1 | pay_for_services.yes_covid== 1 | health_expenditures.yes_other  == 1 | pay_for_services.yes_other == 1)
+)%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","borrowed_money","bought_items_on_credit","health_expenditures.yes_covid","pay_for_services.yes_covid","health_expenditures.yes_other","pay_for_services.yes_other")) %>% arrange(reported_date)
+
+brwd_money %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where (Borrowed money = No AND bought_items_on_credit =no)  AND (health_coping = Going into debt to pay for health expenditures OR Seeking community support to pay for services)") %>% kable_styling(position = "center")
+
+
+brwd_money2 <- hh_join_final %>% filter(
+  borrowed_money == "no" & income_source.borrowed_money == 1)%>% 
+  select(c("reported_date","respondent_id","enumerator_id","X_uuid","income_source","borrowed_money","income_source.borrowed_money")) %>% arrange(reported_date)
+
+
+
+brwd_money2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where Borrowed money = no AND income_source is Borrowed money") %>% kable_styling(position = "center")  
+  
+if(population == "refugee"){
+depending_on_food_rations <- hh_join_final %>% filter(
+depending_on_food_rations == "yes" & ((food_source.purchase_cash == 1 | food_source.purchase_credit == 1 | food_source.barter_and_exchange == 1 | food_source.gathering_of_wild_foods == 1 | food_source.hunting == 1 | food_source.own_production == 1 | food_source.other == 1) |
+(income_source.labor_inside_the_camp == 1 | income_source.labor_outside_the_camp == 1 | income_source.own_business == 1 | income_source.sales_of_assistance_items == 1 | income_source.savings == 1 | income_source.selling_firewood == 1 | income_source.other == 1)))%>% 
+  select(c("reported_date","respondent_id","enumerator_id","X_uuid","depending_on_food_rations","food_source","income_source")) %>% arrange(reported_date)
+}
+
+
+if(population != "refugee"){
+depending_on_food_rations <- hh_join_final %>% filter(
+depending_on_food_rations == "yes" & ((food_source.purchase_cash == 1 | food_source.purchase_credit == 1 | food_source.barter_and_exchange == 1 | food_source.gathering_of_wild_foods == 1 | food_source.hunting == 1 | food_source.own_production == 1 | food_source.other == 1) | (income_source.labor_inside_the_camp == 1 | income_source.labor_outside_the_camp == 1 | income_source.own_business == 1 | income_source.agriculture_production == 1 | income_source.sales_of_assistance_items == 1 | income_source.savings == 1 | income_source.selling_firewood == 1 | income_source.other == 1)) 
+  )%>% 
+  select(c("reported_date","respondent_id","enumerator_id","X_uuid","depending_on_food_rations","food_source","income_source")) %>% arrange(reported_date)
+}
+
+depending_on_food_rations$income_source <- str_replace_all(depending_on_food_rations$income_source," ",",")
+depending_on_food_rations$food_source <- str_replace_all(depending_on_food_rations$food_source," ",",")
+
+depending_on_food_rations %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where Depending on food rations and/or support from neighbors and relatives as only food/income source = Yes AND (food_source is any option that is NOT Food assistance (food card) OR Support from relatives/friends) or food_source.borrowing") %>% kable_styling(position = "center")
+
+
+begging <- hh_join_final %>% filter(
+  begging == "no" & (income_source.begging == 1 | food_source.begging == 1)
+)%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","begging","income_source","income_source.begging","food_source.begging")) %>% arrange(reported_date)
+
+begging %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where Begging = no AND income_source is Begging OR food_source is begging") %>% kable_styling(position = "center")
+
+
+# selling_firewood <- hh_join_final %>% filter(
+#   selling_firewood == "yes" & income_source.selling_firewood == 0
+# )%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","selling_firewood","income_source","income_source.selling_firewood")) %>% arrange(reported_date)
+# 
+# selling_firewood %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where Collection of firewood for selling (not usual income) AND income_source is NOT Selling firewood") %>% kable_styling(position = "center")
+
+
+# selling_labor <- hh_join_final %>% filter(
+#   selling_labor == "yes" & (income_source.labor_inside_the_camp ==0 & income_source.labor_outside_the_camp == 0))%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","selling_labor","income_source","income_source.labor_inside_the_camp","income_source.labor_outside_the_camp")) %>% arrange(reported_date)
+#  
+# selling_labor %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where Selling labor in advance AND (income_source is NOT Labor or employment inside the camp AND Labor or employment outside the camp)") %>% kable_styling(position = "center")
+```
+
+## Debt Reason 
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+# debt_reason1 <-  hh_join_final %>% filter(
+#   debt_reason.buy_food == 1 & food_source.purchase_credit == 0 & food_source.purchase_cash == 0
+# )%>% select(c("enumerator_id","X_uuid","debt_reason.buy_food","food_source.purchase_cash","food_source.purchase_credit"))
+#   
+# debt_reason1 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where debt_reason = To buy food AND food_source is NOT Purchase (credit)") %>% kable_styling(position = "center")
+
+
+debt_reason2 <-  hh_join_final %>% filter(
+debt_reason.cover_health_expenses == 1 & ((health_expenditures.no == 1 & pay_for_services.no == 1) | (treatment_sought_no == "no" & death == "no")))%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","death","debt_reason.cover_health_expenses","health_expenditures.no","pay_for_services.no","treatment_sought_no")) %>% arrange(reported_date)
+
+debt_reason2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where debt_reason = To cover health expenses AND (health_coping is NOT ( Going into debt to pay for health expenditures OR Seeking community support to pay for services) OR no treatment sought for any individual)<p>**column to check:** <p>_1.treatment_sought_") %>% kable_styling(position = "center")
+
+if (population == "refugee"){
+
+debt_reason3 <-  hh_join_final %>% filter(
+  debt_reason.to_pay_house_rent == 1 & shelter_paid == "no_need"
+)%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","debt_reason.to_pay_house_rent","shelter_paid")) %>% arrange(reported_date)
+
+debt_reason3 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where debt_reason = To pay house rent AND shelter_paid = No, no need") %>% kable_styling(position = "center")
+  
+}
+
+
+debt_reason4 <-  hh_join_final %>% filter(
+  debt_reason.to_repair_or_build_shelter == 1 & shelter_materials_source.purchased == 0
+)%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","debt_reason.to_repair_or_build_shelter","shelter_materials_source.purchased")) %>% arrange(reported_date)
+
+debt_reason4 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where debt_reason = To repair or build shelter AND shelter_materials_source is NOT Purchased by household themselves") %>% kable_styling(position = "center")
+
+
+
+if (population == "refugee") {
+debt_reason5 <-  hh_join_final %>% filter(
+  debt_reason.pay_school == 1 & school_children_total == 0 
+)%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","debt_reason.pay_school","school_children_total")) %>% arrange(reported_date)}
+
+if (population != "refugee") {
+debt_reason5 <-  hh_join_final %>% filter(
+  debt_reason.pay_school == 1 & school_children_total == 0 
+)%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","debt_reason.pay_school","school_children_total")) %>% arrange(reported_date)}
+
+debt_reason5 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where debt_reason = To pay school, education costs AND no child attending any type of schooling") %>% kable_styling(position = "center")
+
+
+debt_reason6 <- hh_join_final %>% filter(
+  (food_source.purchase_credit == 0 & debt_reason.buy_food == 1) | 
+    (food_source.purchase_credit == 1 & debt_reason.buy_food == 0)) %>% 
+  select(c("respondent_id","enumerator_id","X_uuid","debt_reason.buy_food","food_source"))
+debt_reason6$food_source <- str_replace_all(debt_reason6$food_source," ",",")
+
+
+debt_reason6 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where food_source.purchase_credit = 0 & debt_reason.buy_food = 1) | (food_source.purchase_credit = 1 & debt_reason.buy_food = 0)") %>% kable_styling(position = "center")
+
+
+
+```
+
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+if(population == "refugee"){
+soap_hhq <- hh_join_final %>% filter(
+  soap_hh == "no" & handwashing_covid_incre == "yes"
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","soap_hh","handwashing_covid_incre")) %>% arrange(reported_date)
+
+soap_hhq %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where soap_hh = No AND handwashing_covid_incre = Yes") %>% kable_styling(position = "center")
+
+
+
+security_issues = hh_join_final %>% filter(
+  security_issues.hlp_disputes == 1 & shelter_land_disputes_hc.over_use_of_land_for_shelter == 0
+)%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","security_issues.hlp_disputes","shelter_land_disputes_hc.over_use_of_land_for_shelter")) %>% arrange(reported_date)
+
+
+security_issues %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where security_issues = Disputes over land and housing and shelter_land_disputes_hc is NOT  Yes, issues over use of land for shelter") %>% kable_styling(position = "center")
+
+
+language_cols <- hh_join_final %>% select(c(starts_with("language_member."))) %>% colnames()
+
+hh_join_final$i.landguage_sum <- rowSums(hh_join_final[language_cols],na.rm = T)
+language <- hh_join_final %>% filter(
+  i.landguage_sum > 3
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid",language_cols)) %>% arrange(reported_date)
+
+language %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where   more than 3 languages are selected") %>% kable_styling(position = "center")
+
+
+# learning_col <- c("ind_ed_TLC","ind_ed_madrassa","ind_ed_nonformal")
+# indv$i.learning_rowsum <- rowSums(indv[learning_col]=="yes",na.rm = T)
+# 
+# learning_more_than_one <- indv %>% filter(i.learning_rowsum > 0) %>% select(c("X_uuid",learning_col)) %>% left_join( hh_join_enu) %>% select(c("enumerator_id","X_uuid",learning_col))
+# 
+# learning_more_than_one %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where   more than 1 schooling type selected are selected") %>% kable_styling(position = "center")
+}
+
+```
+
+## Modality Shelter
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+modality_shelter1 <- hh_join_final %>% filter(
+  modality_shelter == "carpenter" & improvement.no_improvement == 1 & improvement_reason != "no_money_to_pay_for_labor") %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","modality_shelter","improvement.no_improvement","improvement_reason")) %>% arrange(reported_date)
+
+modality_shelter1 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where  modality_shelter = Carpenter/mason/labor support AND (improvement = No improvement AND improvement_reason is NOT No money to pay for labor)") %>% kable_styling(position = "center")
+
+
+modality_shelter2 <- hh_join_final %>% filter(
+  modality_shelter == "technical_assistance" & improvement.no_improvement == 1 & improvement_reason != "how_to_improve_the_shelter"
+)%>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","modality_shelter","improvement.no_improvement","improvement_reason")) %>% arrange(reported_date)
+
+modality_shelter2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where  modality_shelter = Technical assistance (knowledge/training) AND (improvement = No improvement AND improvement_reason is NOT  Dont know how to improve the shelter)") %>% kable_styling(position = "center")
+
+```
+
+
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+# treatment_type_fear <- indv %>% filter(
+#   treatment_type == "covid_19_testing" & ind_why_notreatment.fear_of_what_to_expect_when_tested_positive_for_covid_19 == 1
+# ) %>% left_join(hh_join_final) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","treatment_type","ind_why_notreatment.fear_of_what_to_expect_when_tested_positive_for_covid_19")) %>% arrange(reported_date)
+# 
+#  treatment_type_fear %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where treatment_type is NOT COVID-19 testing/treatment AND ind_why_notreatment = Fear of what to expect when tested positive for COVID 19") %>% kable_styling(position = "center")
+
+
+```
+
+
+
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+# if(population == "host"){
+#   waster <- hh_join_final %>% filter(
+#     visible_waste == "never" & open_defecation == "yes"
+#   ) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","visible_waste","open_defecation")) %>% arrange(reported_date)
+# 
+#  waster %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where visible_waste = Never AND open_defecation = Yes") %>% kable_styling(position = "center")
+#   }
+
+```
+
+## Impact Covid
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+
+impact_covid1 <- hh_join_final %>% filter(
+  impact_covid.education == 1 & school_children_total == 0
+) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","impact_covid.education")) %>% arrange(reported_date)
+
+impact_covid1 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where impact_covid = education AND NO individual in the household attending any form of learning (under individual loop") %>% kable_styling(position = "center")
+  
+
+impact_covid2 <- hh_join_final %>% filter(
+  impact_covid.clean_water ==1 & enough_water == "yes"
+    ) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","impact_covid.clean_water","enough_water")) %>% arrange(reported_date)
+
+impact_covid2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where impact_covid = clean_water AND enough_water = yes") %>% kable_styling(position = "center")
+
+impact_covid3 <- hh_join_final %>% filter(
+impact_covid.sickness ==1 & need_trt_byt_not_regular_summaries == 0) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","impact_covid.sickness","need_trt_byt_not_regular_summaries")) %>% arrange(reported_date)
+  
+impact_covid3 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "impact_covid = sickness AND NO individual in the HH that had an illness in the past 30 days (under individual loop - if for no individual, ind_need_treatment = yes AND treatment_type is NOT regular_check_up)") %>% kable_styling(position = "center")
+
+
+
+impact_covid4_cols <- c("impact_covid.lost_income", "impact_covid.limited_food", "impact_covid.basic_services", 
+                        "impact_covid.education", "impact_covid.clean_water", "impact_covid.sickness", 
+                        "impact_covid.death", "impact_covid.violence")
+hh_join_final$rowsum_impact_covid4 <- rowSums(hh_join_final[impact_covid4_cols],na.rm = T)
+
+impact_covid4_gtr_5 <- hh_join_final %>% filter(
+  rowsum_impact_covid4 >5
+) %>% select(c("reported_date","enumerator_id","respondent_id","X_uuid","rowsum_impact_covid4",impact_covid4_cols)) %>% arrange(reported_date)
+
+if(nrow(impact_covid4_gtr_5)>0){
+impact_covid4_5_gth <- gather(impact_covid4_gtr_5,c(6:(ncol(impact_covid4_gtr_5))),key = "impact_covid_4",value = "yn") %>% filter(yn == 1)
+
+impact_covid4_5_gth2 <- impact_covid4_5_gth %>% group_by(X_uuid) %>% mutate(
+  list=p(impact_covid_4)
+) %>% select(c("reported_date","X_uuid","enumerator_id","respondent_id","list"))
+
+
+uuid_unique_impact<- impact_covid4_5_gth2$X_uuid %>% unique()
+
+list <- list()
+for(i in uuid_unique_impact){
+  list[[i]]<-  (impact_covid4_5_gth2 %>% filter(X_uuid == i))[1,]
+}
+impact_covid_4_v2 <- do.call("rbind",list)
+
+impact_covid_4_v2 %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where  more than 5 impact_covid mechanisms are selected") %>% kable_styling(position = "center")
+}
+
+```
+
+
+## Duplicate ID and Referral
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+check_duplicate_id <- hh_join_final2 %>% filter(duplicated(respondent_id)) %>% select("respondent_id") 
+
+duplicate_id <- check_duplicate_id$respondent_id
+
+check_duplicate_respondent_id <- hh_join_final2 %>% filter(
+  respondent_id %in% duplicate_id
+) %>% select(c("reported_date","respondent_id","informed_consent","enumerator_id","X_uuid","respondent_id")) %>% arrange(respondent_id)
+
+check_duplicate_respondent_id %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where respondent_id is not unique") %>% kable_styling(position = "center")
+
+
+if(population == "refugee"){
+  referral <- hh_join_final %>% filter(!is.na(referral)) %>% select(c("reported_date","respondent_id","enumerator_id","X_uuid","referral")) %>% arrange(reported_date)
+referral %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys where any referrals were made") %>% kable_styling(position = "center")
+}
+
+
+
+```
