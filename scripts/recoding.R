@@ -257,7 +257,7 @@ if (population != "refugee"){
 hh_to_indv <- hh_to_indv1 %>% left_join(hh_to_indv2)
 
 
-# compile dataset ---------------------------------------------------------
+# compile and write dataset ---------------------------------------------------------
 
 compile_dataset <- hh_to_hh %>% left_join(hh_to_indv,by =c ("X_uuid"="X_submission__uuid"))
 
