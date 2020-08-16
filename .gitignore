@@ -12,6 +12,12 @@
 /figure/*
 /funtions/experimental/*
 
+!/outputs/host/composite_indicator/.gitkeep
+
+!/outputs/refugee/composite_indicator/.gitkeep
+
+!/outputs/IOM/composite_indicator/.gitkeep
+
 !/inputs/.gitkeep
 !/outputs/.gitkeep
 !/GIS/.gitkeep

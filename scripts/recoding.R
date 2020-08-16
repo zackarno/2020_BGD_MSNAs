@@ -87,7 +87,7 @@ hh_to_hh <- hh %>% mutate(
   i.plw_total_hh= if_else(plw_total>0, "yes", "no"),
   i.not_send_back_to_school_total= sum(not_send_back_to_school_total,na.rm = T) / sum(school_children_total,na.rm = T)
   
-) %>% select(starts_with("i."))
+)
 
 
 
@@ -223,9 +223,11 @@ if (population == "host") {
     i.ind_nonformal_learn_m_18_24=if_else( (ind_nonformal_learn != "none" & individual_age >= 18 & individual_age <= 24 & ind_gender == "male"),"yes","no",NULL),
     i.ind_school_dropout= if_else(ind_formal_learning == "none" & ind_formal_learning_none != "none","yes","no",NULL)
     
-  )} %>% select(starts_with("i."))
+  )} 
+
 # household to individual -------------------------------------------------
-hh_to_indv<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
+
+hh_to_indv1<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
   
   dependents = (length(individual_age[individual_age<15]) + length(individual_age[individual_age>64])),
   non_dependent = (length(individual_age[individual_age %in% 15:64])),
@@ -240,13 +242,30 @@ hh_to_indv<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
 )
 
 if (population== "refugee"){
-  hh_to_indv<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
-    i.ind_out_of_school= if_else(sum(sum(ind_ed_TLC=="no", na.rm = T) & sum(individual_age %in% 6:18))>0, "yes","no",NULL)
+  hh_to_indv2<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
+    i.ind_out_of_school= if_else(sum(ind_ed_TLC=="no" & individual_age %in% 6:18,na.rm = T )>0, "yes","no",NULL)
   )
 }
 
+
 if (population== "host"){
-  hh_to_indv<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
-    i.ind_out_of_school= if_else(sum(sum(ind_formal_learning == "none", na.rm = T) & sum(individual_age %in% 5:17))>0, "yes","no",NULL)
+  hh_to_indv2<- indv_to_indv %>% dplyr::group_by(X_submission__uuid) %>% dplyr::summarise(
+    i.ind_out_of_school= if_else(sum(ind_formal_learning == "none" & individual_age %in% 5:17,na.rm = T)>0, "yes","no",NULL)
   )
+}
+
+hh_to_indv <- hh_to_indv1 %>% left_join(hh_to_indv2)
+
+
+# compile dataset ---------------------------------------------------------
+
+compile_dataset <- hh_to_hh %>% left_join(hh_to_indv,by =c ("X_uuid"="X_submission__uuid"))
+
+
+if (write_output == "yes") {
+  write.csv(compile_dataset,paste0("outputs/",population,"/composite_indicator/",str_replace_all(day_to_run,"-","_"),"_composite_indicator.csv"))
+  write.csv(compile_dataset,paste0("outputs/",population,"/composite_indicator/composite_indicator.csv"))
+  
+  write.csv(indv_to_indv,paste0("outputs/",population,"/composite_indicator/",str_replace_all(day_to_run,"-","_"),"_INDV_composite_indicator.csv"))
+  write.csv(indv_to_indv,paste0("outputs/",population,"/composite_indicator/INDV_composite_indicator.csv"))
 }
