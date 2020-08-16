@@ -5,7 +5,7 @@ library(stringr)
 library(lubridate)
 # -------------------------------------------------------------------------
 
-population<-c("host","refugee","IOM")[1]
+population<-c("host","refugee","IOM")[3]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 source("scripts/active_path.R")
@@ -38,7 +38,7 @@ if(population == "refugee"){
   
 }
 
-if(population == "host"){
+if(population != "refugee"){
   edu_no_formal <- c("vocational","madrassa_only") 
   edu_some_primary <- c("1", "2", "3", "4")
   primary_and_above <- c("5", "6", "7", "8",
@@ -111,7 +111,7 @@ if (population == "refugee") {
     
   )
 }
-if (population == "host") {
+if (population != "refugee") {
   hh_to_hh <- hh_to_hh %>% dplyr::mutate(
     i.valid_id_hh= if_else(hh$valid_id == hh$over_18_HH_count,"yes","no"),
     i.highest_education= if_else(hh$edu_highest %in% edu_no_formal, "No formal education",
@@ -203,7 +203,7 @@ if (population == "refugee") {
 }
 
 
-if (population == "host") {
+if (population != "refugee") {
   indv_to_indv <- indv_to_indv %>% dplyr::mutate(
     i.ind_formal_learning_f_4=if_else( (ind_formal_learning != "none" & individual_age == 4 & ind_gender == "female"),"yes","no",NULL),
     i.ind_formal_learning_m_4=if_else( (ind_formal_learning != "none" & individual_age == 4 & ind_gender == "male"),"yes","no",NULL),
@@ -248,7 +248,7 @@ if (population== "refugee"){
 }
 
 
-if (population== "host"){
+if (population != "refugee"){
   hh_to_indv2<- indv_to_indv %>% dplyr::group_by(X_submission__uuid) %>% dplyr::summarise(
     i.ind_out_of_school= if_else(sum(ind_formal_learning == "none" & individual_age %in% 5:17,na.rm = T)>0, "yes","no",NULL)
   )
