@@ -5,9 +5,10 @@ library(stringr)
 library(lubridate)
 # -------------------------------------------------------------------------
 
-population<-c("host","refugee","IOM")[3]
+population<-c("host","refugee")[1]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
+if(population == "host") {source("scripts/combine_host_data.R")}
 source("scripts/active_path.R")
 
 # read_data ---------------------------------------------------------------
@@ -121,12 +122,12 @@ if (population != "refugee") {
 }
 # individual to individual  -----------------------------------------------
 indv_to_indv<- indv %>% mutate(
-  i.age_groups= if_else( individual_age %in% 0:4| individual_age_mo<12,"0-4",
+  i.age_groups= if_else( individual_age %in% 0:4,"0-4",
                          if_else(individual_age %in% 5:11, "5-11",
                                  if_else(individual_age %in% 12:17, "12-17",
                                          if_else(individual_age %in% 18:24, "18-24",
                                                  if_else(individual_age %in% 25:59, "25-59",
-                                                         if_else(individual_age>=60, "60+","",missing = NULL)))))),
+                                                         if_else(individual_age>=60, "60+","error",missing = NULL)))))),
   i.ind_need_treatment_f_0_17= if_else(ind_need_treatment== "yes"& ind_gender== "female"& individual_age<=17, "yes","no"),
   i.ind_need_treatment_m_0_17= if_else(ind_need_treatment== "yes"& ind_gender== "male"& individual_age<=17, "yes","no"),
   i.ind_need_treatment_f_18_59=if_else(ind_need_treatment== "yes"& ind_gender== "female"& individual_age %in% 18:59, "yes","no"),
