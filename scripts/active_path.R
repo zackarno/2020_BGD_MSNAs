@@ -14,10 +14,10 @@ if(population == "refugee"){
   pop_path <- "DAP/refugee/population/pop_UNHCR_march_2020.csv"
   recoding_output_hh <- "outputs/refugee/composite_indicator/composite_indicator.csv"
   recoding_output_indv <- "outputs/refugee/composite_indicator/INDV_composite_indicator.csv"
-  analysis_strata<-"regional_strata"
+  # analysis_strata<-"regional_strata"
   sf_strata<-"Camp"
   sf_pop<- "Total.Families"
-  df_strata<- "Camp_Number"
+  df_strata<- "camp_name_fix"
 }
 
 if(population == "IOM"){
@@ -35,10 +35,10 @@ if(population == "IOM"){
   pop_path <- "DAP/IOM/population/Population_Figures_2011_Census_HostCommunity.csv"
   recoding_output_hh <- "outputs/IOM/composite_indicator/composite_indicator.csv"
   recoding_output_indv <- "outputs/IOM/composite_indicator/INDV_composite_indicator.csv"
-  df_strata<-"Area_village_street"
-  sf_strata<-"Union"
+  df_strata<-"upazilla_name"
+  sf_strata<-"Upazila"
   sf_pop<- "HH_pop"
-  analysis_strata<-"Thana"
+  # analysis_strata<-"Thana"
 }
 
 if(population == "host"){
@@ -56,8 +56,8 @@ tool_path <- "DAP/host/tool/JMSNA2020_HC_KoBo_Training_v1.xls"
 pop_path <- "DAP/host/population/Population_Figures_2011_Census_HostCommunity.csv"
 recoding_output_hh <- "outputs/host/composite_indicator/composite_indicator.csv"
 recoding_output_indv <- "outputs/host/composite_indicator/INDV_composite_indicator.csv"
-df_strata<-"Area_village_street"
-sf_strata<-"Union"
+df_strata<-"upazilla_name"
+sf_strata<-"Upazila"
 sf_pop<- "HH_pop"
-analysis_strata<-"Thana"
+# analysis_strata<-"Thana"
 }

@@ -6,7 +6,7 @@ library(survey)
 library(srvyr)
 library(dplyr)
 
-population<-c("host","refugee","IOM")[2]
+population<-c("host","refugee","IOM")[1]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 source("scripts/active_path.R")
@@ -34,9 +34,85 @@ if(population == "refugee"){
       !!(sf_strata):= stringr::str_replace_all(Camp,"Extension","Ext"),
       Total.Families=readr::parse_number(Total.Families %>% stringr::str_replace_all(",","")),
       Total.Individuals= readr::parse_number(Total.Individuals %>% stringr::str_replace_all(",",""))
-    ) %>% 
-    filter(!!sym(sf_strata)!="Kutupalong RC") 
-  hh_data$camp_name2 <- hh_data$camp_name %>% str_replace_all("_"," ") %>% str_replace_all("e","E") %>% 
+    ) 
+  hh_data$camp_name_fix <- hh_data$camp_name %>% str_replace_all("_"," ") %>% str_replace_all("e","E") %>% 
     str_replace_all("w","W") %>% str_replace_all("camp ktp","Kutupalong RC") %>% 
-    str_replace_all("camp nya","Nayapara RC")  %>% str_replace_all("c","C")
+    str_replace_all("camp nya","Nayapara RC")  %>% str_replace_all("c","C") %>% 
+    str_replace_all("20E","20 Ext") %>% str_replace_all("4E","4 Ext")
+ 
+  sf_with_weights<-hh_data %>% 
+    group_by(!!sym(df_strata)) %>% 
+    summarise(sample_strata_num=n()) %>% 
+    right_join(pop, by=setNames(sf_strata,df_strata)) %>% 
+    mutate(sample_global=sum(sample_strata_num),
+           pop_global=sum(!!sym(sf_pop)),
+           survey_weight= (!!sym(sf_pop)/pop_global)/(sample_strata_num/sample_global)
+    )   
+write.csv(sf_with_weights,paste0("outputs/",population,"/weights/",population,"_weights.csv"))
+sf_with_weights <- sf_with_weights %>% select(camp_name_fix,survey_weight)
+
 }
+
+if(population != "refugee"){
+  
+  pop <- pop %>% dplyr::group_by(Upazila) %>% dplyr::summarise(
+    HH_pop = sum(HH_pop)
+  )
+
+hh_data$upazilla_name <- hh_data$upazilla_name %>% str_replace_all("teknaf","Teknaf") %>% 
+  str_replace_all("ukhiya","Ukhiya")
+  
+  
+sf_with_weights<-hh_data %>% 
+    group_by(!!sym(df_strata)) %>% 
+    summarise(sample_strata_num=n()) %>% 
+    right_join(pop, by=setNames(sf_strata,df_strata)) %>% 
+    mutate(sample_global=sum(sample_strata_num),
+           pop_global=sum(!!sym(sf_pop)),
+           survey_weight= (!!sym(sf_pop)/pop_global)/(sample_strata_num/sample_global)
+    )
+write.csv(sf_with_weights,paste0("outputs/",population,"/weights/",population,"_weights.csv"))
+sf_with_weights <- sf_with_weights %>% select(upazilla_name,survey_weight)
+}
+
+
+# data_for_butteR ---------------------------------------------------------
+
+df <- hh_data %>% left_join(sf_with_weights)
+
+df %>% colnames() %>% dput()
+
+# butter analysis  --------------------------------------------------------
+dfsvy<-svydesign(ids = ~1,strata = formula(paste0("~",df_strata)),data = df,weights = formula(paste0("~", "survey_weight")))
+
+if (population == "refugee") {
+  dont_analyze<-c( "X", "survey_date", "survey_start", "deviceid", "end_survey", 
+                 "instance_name", "enum_organisation", "enumerator_id", 
+                 "enum_gender", "respondent_id", "upazila", "camp_name", 
+                 "informed_consent", "fcn_consent", "hh_fcn", "block_number", 
+                 "camp_name_fix","referral_contact", "phone_number", "enum_comment", 
+                 "X_id", "X_uuid", "X_submission_time", 
+                 "X_index")}
+
+if (population != "refugee") {
+  dont_analyze<-c( "X", "survey_date", "survey_start", "deviceid", "end_survey", 
+                   "instance_name", "enum_organisation", "enumerator_id", 
+                   "enum_gender", "respondent_id",  "upazilla_name", "union_name", 
+                   "ward_name", 
+                   "informed_consent",  
+                   "referral_contact", "phone_number", "enum_comment", 
+                   "X_id", "X_uuid", "X_submission_time", 
+                   "X_index")}
+
+dont_analyze_in_data<-dont_analyze[dont_analyze %in% colnames(df)]
+is_not_empty<-function(x){ all(is.na(x))==FALSE}
+
+
+cols_to_analyze<-df %>% select(-starts_with("Other"), -ends_with(".other")) %>%
+  select_if(.,is_not_empty) %>% select(-dont_analyze_in_data) %>% colnames() 
+
+
+
+basic_analysis_strata<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze)
+
+
