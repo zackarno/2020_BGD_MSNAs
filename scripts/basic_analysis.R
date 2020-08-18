@@ -6,7 +6,7 @@ library(survey)
 library(srvyr)
 library(dplyr)
 
-population<-c("host","refugee")[2]
+population<-c("host","refugee")[1]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 source("scripts/active_path.R")
@@ -119,8 +119,8 @@ if(population == "host"){
                                                                        c( "Received from community leader", "other"))
   dfsvy$variables$cooking_fuel_other<- forcats::fct_expand(dfsvy$variables$cooking_fuel_other,c( "Dry leaves", "other"))
   dfsvy$variables$masks_not_used_other<- forcats::fct_expand(dfsvy$variables$masks_not_used_other,c( "No COVID-19 reported in area", "other"))
-  dfsvy$variables$i.food_source_assistance<- forcats::fct_expand(dfsvy$variables$i.food_source_assistance,c( "no", "yes"))
-  dfsvy$variables$i.no_working_age<- forcats::fct_expand(dfsvy$variables$i.no_working_age,c( "no", "yes"))
+  dfsvy$variables$I.FSL.food_source_assistance.HH<- forcats::fct_expand(dfsvy$variables$I.FSL.food_source_assistance.HH,c( "no", "yes"))
+  dfsvy$variables$I.HH_CHAR.no_working_age.INDVHH<- forcats::fct_expand(dfsvy$variables$I.HH_CHAR.no_working_age.INDVHH,c( "no", "yes"))
   dfsvy$variables$feedback_problems_other<- forcats::fct_expand(dfsvy$variables$feedback_problems_other,c( "He is afraid to make a complaint ", "other"))
   
 }
@@ -138,7 +138,7 @@ if (write_output == "yes") {
 df_weight <- df %>% select(X_uuid,survey_weight)
 indv_with_weights <- ind_data %>% left_join(df_weight,by=c("X_submission__uuid"="X_uuid"))
 
-indv_with_weights$i.age_groups
+indv_with_weights<- indv_with_weights %>% filter(!is.na(survey_weight))
 
 dfsvy_indv<-svydesign(ids = ~1,data = indv_with_weights,weights = formula(paste0("~", "survey_weight")))
 
