@@ -52,6 +52,7 @@ hh_all_gte_5<-clean_indiv %>%
   filter(lt_5_HH==0) %>% 
   pull(X_submission__uuid) 
 
+#THESE ARE THE COLUMNS TO FIX 
 nutr_barrier_cols<-clean_hh %>% select(starts_with("nutrition_barriers")) %>% colnames()
 nutr_barrier_choices_col<-clean_hh %>% select(starts_with("nutrition_barriers.")) %>% colnames()
 
