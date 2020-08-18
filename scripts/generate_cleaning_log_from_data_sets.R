@@ -24,6 +24,7 @@ all(colnames(raw_iom_hh) %in% colnames(raw_unhcr_hh))
 all(colnames(raw_unhcr_hh) %in% colnames(raw_iom_hh))
 all(colnames(raw_unhcr_hh) %in% colnames(raw_iom_hh))
 
+# FOUND A COLUMN WITH A DIFFERENT NAME IN THE UNHCR CLEAN DATASET
 clean_unhcr_hh<- clean_unhcr_hh %>% 
   rename(information_barriers.language_that_i_don.t_understand="information_barriers.language_that_i_don.U.0092.t_understand")
 
