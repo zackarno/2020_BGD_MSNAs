@@ -5,7 +5,7 @@ library(stringr)
 library(lubridate)
 # -------------------------------------------------------------------------
 
-population<-c("host","refugee")[2]
+population<-c("host","refugee")[1]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 if(population == "host") {source("scripts/combine_host_data_v2.R")}
@@ -125,12 +125,9 @@ indv_to_indv<- indv %>% dplyr::mutate(
                                          if_else(individual_age %in% 18:24, "18-24",
                                                  if_else(individual_age %in% 25:59, "25-59",
                                                          if_else(individual_age>=60, "60+","error",missing = NULL)))))),
-  I.HEALTH.ind_need_treatment_f_0_17.INDV= if_else(ind_need_treatment== "yes"& ind_gender== "female"& individual_age<=17, "yes","no"),
-  I.HEALTH.ind_need_treatment_m_0_17.INDV= if_else(ind_need_treatment== "yes"& ind_gender== "male"& individual_age<=17, "yes","no"),
-  I.HEALTH.ind_need_treatment_f_18_59.INDV=if_else(ind_need_treatment== "yes"& ind_gender== "female"& individual_age %in% 18:59, "yes","no"),
-  I.HEALTH.ind_need_treatment_m_18_59.INDV= if_else(ind_need_treatment== "yes"& ind_gender== "male"& individual_age %in% 18:59, "yes","no"),
-  I.HEALTH.ind_need_treatment_f_60.INDV=if_else(ind_need_treatment== "yes"& ind_gender== "female"& individual_age>=60, "yes","no"),
-  I.HEALTH.ind_need_treatment_m_60.INDV=if_else(ind_need_treatment== "yes"& ind_gender== "male"& individual_age>=60, "yes","no"),
+  I.HEALTH.ind_need_treatment_0_17.INDV= if_else(ind_need_treatment== "yes"&  individual_age<=17, "yes","no"),
+  I.HEALTH.ind_need_treatment_18_59.INDV= if_else(ind_need_treatment== "yes"& individual_age %in% 18:59, "yes","no"),
+  I.HEALTH.ind_need_treatment_60.INDV=if_else(ind_need_treatment== "yes"& individual_age>=60, "yes","no"),
   #i.child_nutrition_screened= if_else(child_nutrition_screened== "yes"& (individual_age %in% 1:4|individual_age_mo>=6), "yes","no"),
   #i.child_nutrition_not_screened= if_else(child_nutrition_screened== "no"& (individual_age %in% 1:4|individual_age_mo>=6), "yes","no"),
   #i.child_nutrition_screened_dont_know= if_else(child_nutrition_screened== "dont_know"& (individual_age %in% 1:4|individual_age_mo>=6), "yes","no"),
@@ -140,22 +137,14 @@ indv_to_indv<- indv %>% dplyr::mutate(
   I.INDV_CHAR.ind_work_5_17.INDV= if_else(ind_work=="yes"& individual_age %in% 5:17, "yes","no"),
   I.INDV_CHAR.ind_work_18_59.INDV= if_else(ind_work=="yes"& individual_age %in% 18:59, "yes","no"),
   I.INDV_CHAR.ind_work_60.INDV= if_else(ind_work=="yes"& individual_age>=60, "yes","no"),
-  I.INDV_CHAR.ind_f_3_5.INDV= if_else(ind_gender== "female"& individual_age %in% 3:5, "yes","no"),
-  I.INDV_CHAR.ind_m_3_5.INDV=if_else(ind_gender== "male"& individual_age %in% 3:5, "yes","no"),
-  I.INDV_CHAR.ind_f_6_14.INDV=if_else(ind_gender== "female"& individual_age %in% 6:14, "yes","no"),
-  I.INDV_CHAR.ind_m_6_14.INDV=if_else(ind_gender== "male"& individual_age %in% 6:14, "yes","no"),
-  I.INDV_CHAR.ind_f_15_18.INDV=if_else(ind_gender== "female"& individual_age %in% 15:18, "yes","no"),
-  I.INDV_CHAR.ind_m_15_18.INDV=if_else(ind_gender== "male"& individual_age %in% 15:18, "yes","no"),
-  I.INDV_CHAR.ind_f_19_24.INDV=if_else(ind_gender== "female"& individual_age %in% 19:24, "yes","no"),
-  I.INDV_CHAR.ind_m_19_24.INDV=if_else(ind_gender== "male"& individual_age %in% 19:24, "yes","no"),
-  I.INDV_CHAR.ind_f_4.INDV=if_else(ind_gender== "female"& individual_age==4,"yes","no"),
-  I.INDV_CHAR.ind_m_4.INDV=if_else(ind_gender== "male"& individual_age==4,"yes","no"),
-  I.INDV_CHAR.ind_f_5_11.INDV=if_else(ind_gender== "female"& individual_age %in% 5:11, "yes","no"),
-  I.INDV_CHAR.ind_m_5_11.INDV=if_else(ind_gender== "male"& individual_age %in% 5:11, "yes","no"),
-  I.INDV_CHAR.ind_f_12_17.INDV=if_else(ind_gender== "female"& individual_age %in% 12:17, "yes","no"),
-  I.INDV_CHAR.ind_m_12_17.INDV=if_else(ind_gender== "male"& individual_age %in% 12:17, "yes","no"),
-  I.INDV_CHAR.ind_f_18_24.INDV=if_else(ind_gender== "female"& individual_age %in% 18:24, "yes","no"),
-  I.INDV_CHAR.ind_m_18_24.INDV=if_else(ind_gender== "male"& individual_age %in% 18:24, "yes","no"),
+  I.INDV_CHAR.ind_3_5.INDV= if_else( individual_age %in% 3:5, "yes","no"),
+  I.INDV_CHAR.ind_6_14.INDV=if_else( individual_age %in% 6:14, "yes","no"),
+  I.INDV_CHAR.ind_15_18.INDV=if_else( individual_age %in% 15:18, "yes","no"),
+  I.INDV_CHAR.ind_19_24.INDV=if_else( individual_age %in% 19:24, "yes","no"),
+  I.INDV_CHAR.ind_4.INDV=if_else( individual_age==4,"yes","no"),
+  I.INDV_CHAR.ind_5_11.INDV=if_else( individual_age %in% 5:11, "yes","no"),
+  I.INDV_CHAR.ind_12_17.INDV=if_else( individual_age %in% 12:17, "yes","no"),
+  I.INDV_CHAR.ind_18_24.INDV=if_else( individual_age %in% 18:24, "yes","no"),
   I.INDV_CHAR.ind_4_24.INDV=if_else(individual_age %in% 4:24, "yes","no"),
   I.INDV_CHAR.ind_6_18.INDV=if_else(individual_age %in% 6:18, "yes","no"),
   I.INDV_CHAR.ind_5_17.INDV=if_else(individual_age %in% 5:17, "yes","no"),
@@ -172,56 +161,36 @@ indv_to_indv<- indv %>% dplyr::mutate(
 
 if (population == "refugee") {
   indv_to_indv <- indv_to_indv %>% dplyr::mutate(
-    I.EDU.ind_ed_TLC_f_3_5.INDV=if_else( ind_ed_TLC == "yes" & individual_age >= 3 & individual_age <= 5 & ind_gender == "female","yes","no",NULL),
-    I.EDU.ind_ed_TLC_m_3_5.INDV=if_else( ind_ed_TLC == "yes" & individual_age >= 3 & individual_age <= 5 & ind_gender == "male","yes","no",NULL),
-    I.EDU.ind_ed_TLC_f_6_14.INDV=if_else( ind_ed_TLC == "yes" & individual_age >= 6 & individual_age <= 14 & ind_gender == "female","yes","no",NULL),
-    I.EDU.ind_ed_TLC_m_6_14.INDV=if_else( ind_ed_TLC == "yes" & individual_age >= 6 & individual_age <= 14 & ind_gender == "male","yes","no",NULL),
-    I.EDU.ind_ed_TLC_f_15_18.INDV=if_else( ind_ed_TLC == "yes" & individual_age >= 15 & individual_age <= 18 & ind_gender == "female","yes","no",NULL),
-    I.EDU.ind_ed_TLC_m_15_18.INDV=if_else( ind_ed_TLC == "yes" & individual_age >= 15 & individual_age <= 18 & ind_gender == "male","yes","no",NULL),
-    I.EDU.ind_ed_TLC_f_19_24.INDV=if_else( ind_ed_TLC == "yes" & individual_age >= 19 & individual_age <= 24 & ind_gender == "female","yes","no",NULL),
-    I.EDU.ind_ed_TLC_m_19_24.INDV=if_else( ind_ed_TLC == "yes" & individual_age >= 19 & individual_age <= 24 & ind_gender == "male","yes","no",NULL),
-    I.EDU.ind_ed_madrassa_f_3_5.INDV=if_else( ind_ed_madrassa == "yes" & individual_age >= 3 & individual_age <= 5 & ind_gender == "female","yes","no",NULL),
-    I.EDU.ind_ed_madrassa_m_3_5.INDV=if_else( ind_ed_madrassa == "yes" & individual_age >= 3 & individual_age <= 5 & ind_gender == "male","yes","no",NULL),
-    I.EDU.ind_ed_madrassa_f_6_14.INDV=if_else( ind_ed_madrassa == "yes" & individual_age >= 6 & individual_age <= 14 & ind_gender == "female","yes","no",NULL),
-    I.EDU.ind_ed_madrassa_m_6_14.INDV=if_else( ind_ed_madrassa == "yes" & individual_age >= 6 & individual_age <= 14 & ind_gender == "male","yes","no",NULL),
-    I.EDU.ind_ed_madrassa_f_15_18.INDV=if_else( ind_ed_madrassa == "yes" & individual_age >= 15 & individual_age <= 18 & ind_gender == "female","yes","no",NULL),
-    I.EDU.ind_ed_madrassa_m_15_18.INDV=if_else( ind_ed_madrassa == "yes" & individual_age >= 15 & individual_age <= 18 & ind_gender == "male","yes","no",NULL),
-    I.EDU.ind_ed_madrassa_f_19_24.INDV=if_else( ind_ed_madrassa == "yes" & individual_age >= 19 & individual_age <= 24 & ind_gender == "female","yes","no",NULL),
-    I.EDU.ind_ed_madrassa_m_19_24.INDV=if_else( ind_ed_madrassa == "yes" & individual_age >= 19 & individual_age <= 24 & ind_gender == "male","yes","no",NULL),
-    I.EDU.ind_ed_nonformal_f_3_5.INDV=if_else( ind_ed_nonformal == "yes" & individual_age >= 3 & individual_age <= 5 & ind_gender == "female","yes","no",NULL),
-    I.EDU.ind_ed_nonformal_m_3_5.INDV=if_else( ind_ed_nonformal == "yes" & individual_age >= 3 & individual_age <= 5 & ind_gender == "male","yes","no",NULL),
-    I.EDU.ind_ed_nonformal_f_6_14.INDV=if_else( ind_ed_nonformal == "yes" & individual_age >= 6 & individual_age <= 14 & ind_gender == "female","yes","no",NULL),
-    I.EDU.ind_ed_nonformal_m_6_14.INDV=if_else( ind_ed_nonformal == "yes" & individual_age >= 6 & individual_age <= 14 & ind_gender == "male","yes","no",NULL),
-    I.EDU.ind_ed_nonformal_f_15_18.INDV=if_else( ind_ed_nonformal == "yes" & individual_age >= 15 & individual_age <= 18 & ind_gender == "female","yes","no",NULL),
-    I.EDU.ind_ed_nonformal_m_15_18.INDV=if_else( ind_ed_nonformal == "yes" & individual_age >= 15 & individual_age <= 18 & ind_gender == "male","yes","no",NULL),
-    I.EDU.ind_ed_nonformal_f_19_24.INDV=if_else( ind_ed_nonformal == "yes" & individual_age >= 19 & individual_age <= 24 & ind_gender == "female","yes","no",NULL),
-    I.EDU.ind_ed_nonformal_m_19_24.INDV=if_else( ind_ed_nonformal == "yes" & individual_age >= 19 & individual_age <= 24 & ind_gender == "male","yes","no",NULL)
-    
+    I.EDU.ind_ed_TLC_3_5.INDV=if_else( ind_ed_TLC == "yes" & individual_age >= 3 & individual_age <= 5 ,"yes","no",NULL),
+    I.EDU.ind_ed_TLC_6_14.INDV=if_else( ind_ed_TLC == "yes" & individual_age >= 6 & individual_age <= 14 ,"yes","no",NULL),
+    I.EDU.ind_ed_TLC_15_18.INDV=if_else( ind_ed_TLC == "yes" & individual_age >= 15 & individual_age <= 18 ,"yes","no",NULL),
+    I.EDU.ind_ed_TLC_19_24.INDV=if_else( ind_ed_TLC == "yes" & individual_age >= 19 & individual_age <= 24 ,"yes","no",NULL),
+    I.EDU.ind_ed_madrassa_3_5.INDV=if_else( ind_ed_madrassa == "yes" & individual_age >= 3 & individual_age <= 5 ,"yes","no",NULL),
+    I.EDU.ind_ed_madrassa_6_14.INDV=if_else( ind_ed_madrassa == "yes" & individual_age >= 6 & individual_age <= 14 ,"yes","no",NULL),
+    I.EDU.ind_ed_madrassa_15_18.INDV=if_else( ind_ed_madrassa == "yes" & individual_age >= 15 & individual_age <= 18 ,"yes","no",NULL),
+    I.EDU.ind_ed_madrassa_19_24.INDV=if_else( ind_ed_madrassa == "yes" & individual_age >= 19 & individual_age <= 24 ,"yes","no",NULL),
+    I.EDU.ind_ed_nonformal_3_5.INDV=if_else( ind_ed_nonformal == "yes" & individual_age >= 3 & individual_age <= 5 ,"yes","no",NULL),
+    I.EDU.ind_ed_nonformal_6_14.INDV=if_else( ind_ed_nonformal == "yes" & individual_age >= 6 & individual_age <= 14 ,"yes","no",NULL),
+    I.EDU.ind_ed_nonformal_15_18.INDV=if_else( ind_ed_nonformal == "yes" & individual_age >= 15 & individual_age <= 18 ,"yes","no",NULL),
+    I.EDU.ind_ed_nonformal_19_24.INDV=if_else( ind_ed_nonformal == "yes" & individual_age >= 19 & individual_age <= 24 ,"yes","no",NULL),
+
   )
 }
 
 
-if (population != "refugee") {
+if (population == "host") {
   indv_to_indv <- indv_to_indv %>% dplyr::mutate(
-    I.EDU.ind_formal_learning_f_4.INDV=if_else( (ind_formal_learning != "none" & individual_age == 4 & ind_gender == "female"),"yes","no",NULL),
-    I.EDU.ind_formal_learning_m_4.INDV=if_else( (ind_formal_learning != "none" & individual_age == 4 & ind_gender == "male"),"yes","no",NULL),
-    I.EDU.ind_formal_learning_f_5_11.INDV=if_else( (ind_formal_learning != "none" & individual_age >= 5 & individual_age <= 11 & ind_gender == "female"),"yes","no",NULL),
-    I.EDU.ind_formal_learning_m_5_11.INDV=if_else( (ind_formal_learning != "none" & individual_age >= 5 & individual_age <= 11 & ind_gender == "male"),"yes","no",NULL),
-    I.EDU.ind_formal_learning_f_12_17.INDV=if_else( (ind_formal_learning != "none" & individual_age >= 12 & individual_age <= 17 & ind_gender == "female"),"yes","no",NULL),
-    I.EDU.ind_formal_learning_m_12_17.INDV=if_else( (ind_formal_learning != "none" & individual_age >= 12 & individual_age <= 17 & ind_gender == "male"),"yes","no",NULL),
-    I.EDU.ind_formal_learning_f_18_24.INDV=if_else( (ind_formal_learning != "none" & individual_age >= 18 & individual_age <= 24 & ind_gender == "female"),"yes","no",NULL),
-    I.EDU.ind_formal_learning_m_18_24.INDV=if_else( (ind_formal_learning != "none" & individual_age >= 18 & individual_age <= 24 & ind_gender == "male"),"yes","no",NULL),
-    I.EDU.ind_nonformal_learn_f_4.INDV=if_else( (ind_nonformal_learn != "none" & individual_age == 4 & ind_gender == "female"),"yes","no",NULL),
-    I.EDU.ind_nonformal_learn_m_4.INDV=if_else( (ind_nonformal_learn != "none" & individual_age == 4 & ind_gender == "male"),"yes","no",NULL),
-    I.EDU.ind_nonformal_learn_f_5_11.INDV=if_else( (ind_nonformal_learn != "none" & individual_age >= 5 & individual_age <= 11 & ind_gender == "female"),"yes","no",NULL),
-    I.EDU.ind_nonformal_learn_m_5_11.INDV=if_else( (ind_nonformal_learn != "none" & individual_age >= 5 & individual_age <= 11 & ind_gender == "male"),"yes","no",NULL),
-    I.EDU.ind_nonformal_learn_f_12_17.INDV=if_else( (ind_nonformal_learn != "none" & individual_age >= 12 & individual_age <= 17 & ind_gender == "female"),"yes","no",NULL),
-    I.EDU.ind_nonformal_learn_m_12_17.INDV=if_else( (ind_nonformal_learn != "none" & individual_age >= 12 & individual_age <= 17 & ind_gender == "male"),"yes","no",NULL),
-    I.EDU.ind_nonformal_learn_f_18_24.INDV=if_else( (ind_nonformal_learn != "none" & individual_age >= 18 & individual_age <= 24 & ind_gender == "female"),"yes","no",NULL),
-    I.EDU.ind_nonformal_learn_m_18_24.INDV=if_else( (ind_nonformal_learn != "none" & individual_age >= 18 & individual_age <= 24 & ind_gender == "male"),"yes","no",NULL),
-    I.EDU.ind_school_dropout.INDV= if_else(ind_formal_learning == "none" & ind_formal_learning_none != "none","yes","no",NULL)
-    
-  )} 
+    I.EDU.ind_formal_learning_4.INDV=if_else( ind_formal_learning != "none" & individual_age == 4 ,"yes","no",NULL),
+    I.EDU.ind_formal_learning_5_11.INDV=if_else( ind_formal_learning != "none" & individual_age >= 5 & individual_age <= 11 ,"yes","no",NULL),
+    I.EDU.ind_formal_learning_12_17.INDV=if_else( ind_formal_learning != "none" & individual_age >= 12 & individual_age <= 17 ,"yes","no",NULL),
+    I.EDU.ind_formal_learning_18_24.INDV=if_else( ind_formal_learning != "none" & individual_age >= 18 & individual_age <= 24 ,"yes","no",NULL),
+    I.EDU.ind_nonformal_learn_4.INDV=if_else( ind_nonformal_learn != "none" & individual_age == 4 ,"yes","no",NULL),
+    I.EDU.ind_nonformal_learn_5_11.INDV=if_else( ind_nonformal_learn != "none" & individual_age >= 5 & individual_age <= 11 ,"yes","no",NULL),
+    I.EDU.ind_nonformal_learn_12_17.INDV=if_else( ind_nonformal_learn != "none" & individual_age >= 12 & individual_age <= 17 ,"yes","no",NULL),
+    I.EDU.ind_nonformal_learn_18_24.INDV=if_else( ind_nonformal_learn != "none" & individual_age >= 18 & individual_age <= 24 ,"yes","no",NULL),
+    I.EDU.ind_school_dropout.INDV= if_else(ind_formal_learning == "none" & ind_formal_learning_none != "none","yes","no",NULL))
+  } 
+
 
 # household to individual -------------------------------------------------
 
@@ -236,7 +205,8 @@ hh_to_indv1<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
   I.HH_CHAR.ind_work_5_17_hh.INDVHH = if_else(sum(I.INDV_CHAR.ind_work_5_17.INDV == "yes",na.rm = T) >0,"yes","no",NULL),
   I.HH_CHAR.ind_6_59_months_hh.INDVHH=if_else(sum(I.INDV_CHAR.ind_6_59_months.INDV == "yes",na.rm = T) >0,"yes","no",NULL),
   I.HH_CHAR.ind_5_17_hh.INDVHH=if_else(sum(I.INDV_CHAR.ind_5_17.INDV == "yes",na.rm = T) >0,"yes","no",NULL),
-  I.HEALTH.ind_need_treatment_hh.INDVHH=if_else(sum(ind_need_treatment== "yes",na.rm = T) >0,"yes","no",NULL)
+  I.HEALTH.ind_need_treatment_hh.INDVHH=if_else(sum(ind_need_treatment== "yes",na.rm = T) >0,"yes","no",NULL),
+  I.NUTRITION.child_enrolment_nfp_tota.INDVHH = sum(child_enrolment_nfp == "yes",na.rm = T)
   
   )
 
@@ -262,7 +232,6 @@ compile_dataset <- hh_to_hh %>% left_join(hh_to_indv,by =c ("X_uuid"="X_submissi
   I.NUTRITION.i.ind_6_59_months_plw_hh.HH = if_else(I.HH_CHAR.ind_6_59_months_hh.INDVHH == "yes" |
                                                       I.HEALTH.plw_total_hh.HH == "yes","yes","no",NULL)
 )
-
 
 
 

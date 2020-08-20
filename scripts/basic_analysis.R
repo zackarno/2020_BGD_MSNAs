@@ -6,7 +6,7 @@ library(survey)
 library(srvyr)
 library(dplyr)
 
-population<-c("host","refugee")[2]
+population<-c("host","refugee")[1]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 source("scripts/active_path.R")
@@ -109,35 +109,15 @@ dont_analyze_in_data<-dont_analyze[dont_analyze %in% colnames(df)]
 is_not_empty<-function(x){ all(is.na(x))==FALSE}
 
 
-cols_to_analyze<-df %>% select(-starts_with("Other"), -ends_with(".other")) %>%
+cols_to_analyze<-df %>% select(-starts_with("Other"), -ends_with("_other")) %>%
   select_if(.,is_not_empty) %>% select(-dont_analyze_in_data) %>% colnames() 
 
 
 if(population == "host"){
-  dfsvy$variables$shelter_issues_other<- forcats::fct_expand(dfsvy$variables$shelter_issues_other,c( "Homeless", "other"))
-  dfsvy$variables$shelter_materials_source_other<- forcats::fct_expand(dfsvy$variables$shelter_materials_source_other,
-                                                                       c( "Received from community leader", "other"))
-  dfsvy$variables$cooking_fuel_other<- forcats::fct_expand(dfsvy$variables$cooking_fuel_other,c( "Dry leaves", "other"))
-  dfsvy$variables$masks_not_used_other<- forcats::fct_expand(dfsvy$variables$masks_not_used_other,c( "No COVID-19 reported in area", "other"))
-  dfsvy$variables$I.FSL.food_source_assistance.HH<- forcats::fct_expand(dfsvy$variables$I.FSL.food_source_assistance.HH,c( "no", "yes"))
+dfsvy$variables$I.FSL.food_source_assistance.HH<- forcats::fct_expand(dfsvy$variables$I.FSL.food_source_assistance.HH,c( "no", "yes"))
   dfsvy$variables$I.HH_CHAR.no_working_age.INDVHH<- forcats::fct_expand(dfsvy$variables$I.HH_CHAR.no_working_age.INDVHH,c( "no", "yes"))
-  dfsvy$variables$feedback_problems_other<- forcats::fct_expand(dfsvy$variables$feedback_problems_other,c( "He is afraid to make a complaint ", "other"))
-  
 }
 
-if(population == "refugee"){
-  dfsvy$variables$language_member_other<- forcats::fct_expand(dfsvy$variables$language_member_other,c( "Urdu", "other"))
-  
-  # dfsvy$variables$shelter_issues_other<- forcats::fct_expand(dfsvy$variables$shelter_issues_other,c( "Homeless", "other"))
-  # dfsvy$variables$shelter_materials_source_other<- forcats::fct_expand(dfsvy$variables$shelter_materials_source_other,
-  #                                                                      c( "Received from community leader", "other"))
-  # dfsvy$variables$cooking_fuel_other<- forcats::fct_expand(dfsvy$variables$cooking_fuel_other,c( "Dry leaves", "other"))
-  # dfsvy$variables$masks_not_used_other<- forcats::fct_expand(dfsvy$variables$masks_not_used_other,c( "No COVID-19 reported in area", "other"))
-  # dfsvy$variables$I.FSL.food_source_assistance.HH<- forcats::fct_expand(dfsvy$variables$I.FSL.food_source_assistance.HH,c( "no", "yes"))
-  # dfsvy$variables$I.HH_CHAR.no_working_age.INDVHH<- forcats::fct_expand(dfsvy$variables$I.HH_CHAR.no_working_age.INDVHH,c( "no", "yes"))
-  # dfsvy$variables$feedback_problems_other<- forcats::fct_expand(dfsvy$variables$feedback_problems_other,c( "He is afraid to make a complaint ", "other"))
-  # 
-}
 
 
 basic_analysis<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze)
@@ -174,12 +154,17 @@ dont_analyze_in_data_indv<-dont_analyze_indv[dont_analyze_indv %in% colnames(ind
 is_not_empty<-function(x){ all(is.na(x))==FALSE}
 
 
-cols_to_analyze_indv<-indv_with_weights %>% select(-starts_with("Other"), -ends_with(".other")) %>%
+cols_to_analyze_indv<-indv_with_weights %>% select(-starts_with("Other"), -ends_with("_other")) %>%
   select_if(.,is_not_empty) %>% select(-dont_analyze_in_data_indv) %>% colnames() 
 
 
 basic_analysis_indv<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv)
+basic_analysis_indv_by_gender<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv,
+                                                         aggregation_level = "ind_gender" )
+
+
 
 if (write_output == "yes") {
   write.csv(basic_analysis_indv,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_INDV.csv"))
-}
+  write.csv(basic_analysis_indv_by_gender,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_by_gender_INDV.csv"))
+  }
