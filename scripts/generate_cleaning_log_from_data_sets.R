@@ -80,6 +80,9 @@ clean_indiv_fixed<-clean_indiv %>%
 
 
 
+
+
+
 # NOW WE CAN GENERATE THE CLEANING LOGS
 cleaning_logs<-list()
 

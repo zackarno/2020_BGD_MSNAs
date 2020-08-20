@@ -6,7 +6,7 @@ library(survey)
 library(srvyr)
 library(dplyr)
 
-population<-c("host","refugee")[1]
+population<-c("host","refugee")[2]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 source("scripts/active_path.R")
@@ -125,12 +125,36 @@ if(population == "host"){
   
 }
 
+if(population == "refugee"){
+  dfsvy$variables$language_member_other<- forcats::fct_expand(dfsvy$variables$language_member_other,c( "Urdu", "other"))
+  
+  # dfsvy$variables$shelter_issues_other<- forcats::fct_expand(dfsvy$variables$shelter_issues_other,c( "Homeless", "other"))
+  # dfsvy$variables$shelter_materials_source_other<- forcats::fct_expand(dfsvy$variables$shelter_materials_source_other,
+  #                                                                      c( "Received from community leader", "other"))
+  # dfsvy$variables$cooking_fuel_other<- forcats::fct_expand(dfsvy$variables$cooking_fuel_other,c( "Dry leaves", "other"))
+  # dfsvy$variables$masks_not_used_other<- forcats::fct_expand(dfsvy$variables$masks_not_used_other,c( "No COVID-19 reported in area", "other"))
+  # dfsvy$variables$I.FSL.food_source_assistance.HH<- forcats::fct_expand(dfsvy$variables$I.FSL.food_source_assistance.HH,c( "no", "yes"))
+  # dfsvy$variables$I.HH_CHAR.no_working_age.INDVHH<- forcats::fct_expand(dfsvy$variables$I.HH_CHAR.no_working_age.INDVHH,c( "no", "yes"))
+  # dfsvy$variables$feedback_problems_other<- forcats::fct_expand(dfsvy$variables$feedback_problems_other,c( "He is afraid to make a complaint ", "other"))
+  # 
+}
+
 
 basic_analysis<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze)
+basic_analysis_by_hoh<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,aggregation_level = "I.HH_CHAR.gender_hoh.HH")
+
+# if (population == "host") {
+basic_analysis_by_strata<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,aggregation_level = df_strata)
+basic_analysis_by_strata_hoh<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,aggregation_level = c(df_strata,"I.HH_CHAR.gender_hoh.HH"))
+# }
 
 if (write_output == "yes") {
-  write.csv(basic_analysis,paste0("outputs/",population,"/butteR_basic_analysis/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_HH.csv"))
-}
+  write.csv(basic_analysis,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_HH.csv"))
+  write.csv(basic_analysis_by_hoh,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_by_HoH_HH.csv"))
+  write.csv(basic_analysis_by_strata,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_by_strata_HH.csv"))
+  write.csv(basic_analysis_by_strata_hoh,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_by_strata_HoH_HH.csv"))
+  
+  }
 
 
 # individual loop ---------------------------------------------------------
@@ -157,5 +181,5 @@ cols_to_analyze_indv<-indv_with_weights %>% select(-starts_with("Other"), -ends_
 basic_analysis_indv<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv)
 
 if (write_output == "yes") {
-  write.csv(basic_analysis_indv,paste0("outputs/",population,"/butteR_basic_analysis/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_INDV.csv"))
+  write.csv(basic_analysis_indv,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_INDV.csv"))
 }

@@ -8,7 +8,7 @@ library(lubridate)
 population<-c("host","refugee")[2]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
-if(population == "host") {source("scripts/combine_host_data.R")}
+if(population == "host") {source("scripts/combine_host_data_v2.R")}
 source("scripts/active_path.R")
 
 # read_data ---------------------------------------------------------------
@@ -35,8 +35,7 @@ if(population == "refugee"){
   primary_and_above <- c("standard_5", "standard_6", "standard_7", "standard_8",
                          "standard_9", "standard_10", "standard_11", "tertiary_education")
   hh$datearrival_shelter <- hh$datearrival_shelter %>% ymd()
-  language_bangla_english<- c("language_member.bangla","language_member.english")
-  
+
 }
 
 if(population != "refugee"){
@@ -60,18 +59,18 @@ hh_to_hh <- hh %>% mutate(
   I.HH_CHAR.highest_education.HH = if_else(edu_highest %in% edu_no_formal,"no_formal_education",
                                 if_else(edu_highest %in% edu_some_primary,"some_primary",
                                         if_else(edu_highest %in% primary_and_above,"primary_and_above","ERROR",NULL))),
-  I.HEALTH_CHAR.disabled_hh.HH = if_else(disability_seeing %in% disability|disability_hearing %in% disability|
+  I.HEALTH.disabled_hh.HH = if_else(disability_seeing %in% disability|disability_hearing %in% disability|
                             disability_walking%in% disability|disability_remembering %in% disability|
                             disability_self_care%in% disability| disability_speaking %in% disability,"yes","no",NULL ),
   I.FSL.no_income.HH = if_else(income_source.none == 1,"yes","no",NULL),
-  I.FSL.remittances.HH = if_else(income_source.remittances_from_abroad == 1,"yes","no"),
-  I.SNFI.improvement_reason_none.HH= na_if(improvement_reason.no_need_to_improve,y = 1),
-  I.EDU.not_send_back_to_school_hh.HH= if_else(not_send_back_to_school_total >= 1, 0, 1),
+  I.FSL.remittances.HH = if_else(income_source.remittances_from_abroad == 1,"yes","no",NULL),
+  # I.SNFI.improvement_reason_none.HH= na_if(improvement_reason.no_need_to_improve,y = 1),
+  I.EDU.not_send_back_to_school_hh.HH= if_else(not_send_back_to_school_total >= 1, "no", "yes",NULL),
   I.HEALTH.health_dist_more_60.HH= if_else(health_distance  %in% health_distant, "yes","no"),
   I.HEALTH.plw_enrolment_nfp.HH= if_else( plw_enrolment_nfp >= 1,"yes","no" ),
   I.FSL.fcs.HH= (cereals_and_tubers*2 + pulses*3 +
             vegetables*1 + fruits*1 + milk_and_dairy * 4 +
-            meat_or_fish *3 + oil_and_fats * 0.5 +sweets*.5 ),
+            meat_or_fish *3 + oil_and_fats * 0.5 +sweets*.5),
   I.FSL.fcs_acceptable.HH= if_else(I.FSL.fcs.HH>42,"yes","no"),
   I.FSL.fcs_borderline.HH= if_else(I.FSL.fcs.HH>28 & I.FSL.fcs.HH<42,"yes","no"),
   I.FSL.fcs_poor.HH= if_else(I.FSL.fcs.HH<=28, "yes","no"),
@@ -86,8 +85,7 @@ hh_to_hh <- hh %>% mutate(
                                     if_else(food_source_cash_rs == 2 & (food_source.army_distributing_food==1 & food_source.food_assistance_food_card==1),"yes" ,"no",NULL)),
   I.EDU.hh_with_school_children.HH= if_else(school_children_total>1, "yes","no"),
   I.HEALTH.plw_total_hh.HH= if_else(plw_total>0, "yes", "no"),
-  I.EDU.not_send_back_to_school_total.HH= sum(not_send_back_to_school_total,na.rm = T) / sum(school_children_total,na.rm = T)
-  
+  I.EDU.not_send_back_to_school_total.response= sum(not_send_back_to_school_total,na.rm = T) / sum(school_children_total,na.rm = T)
 )
 
 
@@ -103,10 +101,9 @@ if (population == "refugee") {
     I.HH_CHAR.highest_education.HH= if_else(edu_highest %in% edu_no_formal, "No formal education",
                                  if_else(edu_highest %in% edu_some_primary, "Some primary",
                                          if_else(edu_highest %in% primary_and_above, "Primary and above","",missing = NULL ))),
-    language_bangla_english_rs= rowSums(hh_to_hh[,language_bangla_english], na.rm=T),
-    I.HH_CHAR.bangla_english.HH= if_else(language_bangla_english_rs>=1 & (language_member.bangla==1 | language_member.english==1), "yes","no"),
-    I.EDU.remote_learning_hh.HH= if_else(remote_learning_total< school_children_total, 0, 1),
-    I.EDU.remote_learning_all.HH = sum(remote_learning_total,na.rm = T) / sum(school_children_total,na.rm = T)
+    I.HH_CHAR.bangla_english.HH= if_else(language_member.bangla==1 | language_member.english==1, "yes","no"),
+    I.EDU.remote_learning_hh.HH= if_else(remote_learning_total< school_children_total, "no", "yes"),
+    I.EDU.remote_learning_all.response = sum(remote_learning_total,na.rm = T) / sum(school_children_total,na.rm = T)
     
     
     
@@ -240,7 +237,8 @@ hh_to_indv1<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
   I.HH_CHAR.ind_6_59_months_hh.INDVHH=if_else(sum(I.INDV_CHAR.ind_6_59_months.INDV == "yes",na.rm = T) >0,"yes","no",NULL),
   I.HH_CHAR.ind_5_17_hh.INDVHH=if_else(sum(I.INDV_CHAR.ind_5_17.INDV == "yes",na.rm = T) >0,"yes","no",NULL),
   I.HEALTH.ind_need_treatment_hh.INDVHH=if_else(sum(ind_need_treatment== "yes",na.rm = T) >0,"yes","no",NULL)
-)
+  
+  )
 
 if (population== "refugee"){
   hh_to_indv2<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
@@ -260,7 +258,12 @@ hh_to_indv <- hh_to_indv1 %>% left_join(hh_to_indv2)
 
 # compile and write dataset ---------------------------------------------------------
 
-compile_dataset <- hh_to_hh %>% left_join(hh_to_indv,by =c ("X_uuid"="X_submission__uuid"))
+compile_dataset <- hh_to_hh %>% left_join(hh_to_indv,by =c ("X_uuid"="X_submission__uuid")) %>% mutate(
+  I.NUTRITION.i.ind_6_59_months_plw_hh.HH = if_else(I.HH_CHAR.ind_6_59_months_hh.INDVHH == "yes" |
+                                                      I.HEALTH.plw_total_hh.HH == "yes","yes","no",NULL)
+)
+
+
 
 
 if (write_output == "yes") {
