@@ -28,6 +28,7 @@ all(colnames(raw_iom_hh) %in% colnames(raw_unhcr_hh))
 all(colnames(raw_unhcr_hh) %in% colnames(raw_iom_hh))
 all(colnames(raw_unhcr_hh) %in% colnames(raw_iom_hh))
 
+# FOUND A COLUMN WITH A DIFFERENT NAME IN THE UNHCR CLEAN DATASET
 clean_unhcr_hh<- clean_unhcr_hh %>% 
   rename(information_barriers.language_that_i_don.t_understand="information_barriers.language_that_i_don.U.0092.t_understand")
 
@@ -46,27 +47,35 @@ clean_hh<- bind_rows(clean_iom_hh %>% mutate(deviceid=as.character(deviceid)), c
 clean_indiv<-bind_rows(clean_iom_indiv, clean_unhcr_indiv)
 
 
+clean_hh %>% filter(X_uuid=="9b7883e2-f38a-45b1-8c8d-67e8e3659e26") %>% select(starts_with("nutrition_barriers"))
+clean_indiv %>% filter(X_submission__uuid=="9b7883e2-f38a-45b1-8c8d-67e8e3659e26") %>% select(individual_age)
 #WE HAVE TO MAKE ONE SMALL TWEAK TO CLEAN DATA DUE TO ISSUE IN TOOL. NUTR_BARRIERS QUESTIONS SHOULD HAVE ONLY BEEN ASKED TO FAMILIES WITH A CHILD LESS THAN 5 (OR A PREGNANT/LACTATING INDIVIDUAL). HOWEVER THE QUESTION WAS ASKED TO FAMILIES WITH ONE CHILE LESS THAN OR EQUAL TO 5. FURTHER DESCRIPTION SHOULD BE NOTED IN CLEAN DATA SET README
 
-hh_all_gte_5<-clean_indiv %>% 
-  group_by(X_submission__uuid) %>% 
+
+
+hh_all_gte_5<-clean_indiv %>%  #INDIVIDUAL DATASET
+  group_by(X_submission__uuid) %>%  # LOOK AT EACH FAMILY
   summarise(
-    lt_5_HH= if_else(any(individual_age<5),1,0)
+    lt_5_HH= if_else(any(individual_age<5),1,0) # IF ANY FAMILY HAS A CHILD LESS THAN 5 GIVE THAT FAMILY A 1
   ) %>% 
-  filter(lt_5_HH==0) %>% 
-  pull(X_submission__uuid) 
+  filter(lt_5_HH==0) %>% #NOW LOOK AT ALL FAMILIES THAT DO NOT HAV CHILD LESS THAN ONE
+  pull(X_submission__uuid) #EXTRACT THOSE UUIDS
 
 #THESE ARE THE COLUMNS TO FIX 
 nutr_barrier_cols<-clean_hh %>% select(starts_with("nutrition_barriers")) %>% colnames()
 nutr_barrier_choices_col<-clean_hh %>% select(starts_with("nutrition_barriers.")) %>% colnames()
 
+
 fix_nutr_cols<- function(x){
+  plw_total_na_replaced<- ifelse(is.na(clean_hh$plw_total),0,clean_hh$plw_total)#MAKE VAR WHERE PLW NAS ARE REPLACED WITH 0
   x<-as.character(x)
-  fixed_x_char<-case_when(clean_hh$plw_total>0|!is.na(clean_hh$plw_total)~x,
-                          clean_hh$X_uuid %in% hh_all_gte_5~NA_character_,
+  fixed_x_char<-case_when(plw_total_na_replaced>0~x, #IF PLW_TOTAL >0, LEAVE IT BE
+                          clean_hh$X_uuid %in% hh_all_gte_5~NA_character_, #IF UUID IS IN THE EXTRACTED UUID ABOVE MAKE SURE IT GOES TO NA
                           TRUE~x) 
   return(fixed_x_char)
 }
+
+
 
 clean_hh_fixed<- clean_hh %>% 
   mutate_at(
@@ -77,10 +86,13 @@ clean_hh_fixed<- clean_hh %>%
     .funs = ~as.integer(.)
   ) 
 
+
+clean_hh_fixed %>% filter(X_uuid =="9b7883e2-f38a-45b1-8c8d-67e8e3659e26") %>% select(starts_with("nutrition_barriers"), plw_total)
 # ADDITIONALLY, RECORDS WERE DELETED FROM HH DATA, BUT NOT DELETED FROM INDIVIDUAL DATA SET, THESE NEED TO BE REMOVED FROM INDIVIDUAL DATASET
 
 clean_indiv_fixed<-clean_indiv %>% 
   filter(X_submission__uuid %in% clean_hh_fixed$X_uuid)
+
 
 
 write.csv(clean_hh_fixed,"inputs/host_combind/clean_data/hh.csv")
