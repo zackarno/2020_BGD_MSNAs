@@ -27,7 +27,13 @@ food_source_cash<- hh %>%  select(starts_with("food_source.")) %>% colnames() %>
 critical_handwashing<- c("handwashing_three_times.before_eating", 
                          "handwashing_three_times.before_cooking", "handwashing_three_times.after_defecation", 
                          "handwashing_three_times.before_breastfeeding", "handwashing_three_times.before_feeding_children", 
-                         "handwashing_three_times.after_handling_a_childs_stool")                                 
+                         "handwashing_three_times.after_handling_a_childs_stool")    
+income_sources_all <- hh %>% dplyr::select(dplyr::starts_with("income_source.")) %>% colnames() %>% dput()
+income_sources_yes <- c("income_source.remittances_from_abroad","income_source.assistance_from_relatives_and_friends",
+                        "income_source.other_cash_assistance","income_source.borrowed_money")
+income_sources_no <- hh %>% dplyr::select(c(dplyr::starts_with("income_source."),-income_sources_yes)) %>% 
+                                                                  colnames() %>% dput()
+
 
 if(population == "refugee"){
   edu_no_formal <- c("no_education","madrassa_only") 
@@ -85,6 +91,11 @@ hh_to_hh <- hh %>% mutate(
                                     if_else(food_source_cash_rs == 2 & (food_source.army_distributing_food==1 & food_source.food_assistance_food_card==1),"yes" ,"no",NULL)),
   I.EDU.hh_with_school_children.HH= if_else(school_children_total>1, "yes","no"),
   I.HEALTH.plw_total_hh.HH= if_else(plw_total>0, "yes", "no"),
+  income_sources_yes_rs = rowSums(hh[,income_sources_yes],na.rm = T),
+  income_sources_no_rs = rowSums(hh[,income_sources_no],na.rm = T),
+  I.FSL.income_source_borrow.HH = if_else(income_sources_yes_rs > 0 & income_sources_no_rs == 0,"yes","no",NULL),
+  I.HEALTH.pregnant_women_hh.HH	=	if_else(pregnant_woman >= 1 , "yes","no",NULL),
+  I.HEALTH.all_pregnant_women_anc.HH	= if_else(pregnant_woman == pregnant_women_anc,"yes","no",NULL),
   I.EDU.not_send_back_to_school_total.response= sum(not_send_back_to_school_total,na.rm = T) / sum(school_children_total,na.rm = T)
 )
 
@@ -156,8 +167,10 @@ indv_to_indv<- indv %>% dplyr::mutate(
   I.INDV_CHAR.ind_m_60.INDV=if_else(ind_gender== "male"& individual_age>=60, "yes","no"),
   I.INDV_CHAR.ind_6_59_months.INDV= if_else(individual_age %in% 0:4|(individual_age==0 & individual_age_mo>=6 ),"yes","no"),
   I.INDV_CHAR.ind_18_59.INDV=if_else(individual_age %in% 18:59, "yes","no"),
-  I.INDV_CHAR.ind_60.INDV= if_else(individual_age>=60, "yes","no")
-) 
+  I.INDV_CHAR.ind_60.INDV= if_else(individual_age>=60, "yes","no"),
+  I.INDV_CHAR.ind_work_5_older.INDV  = if_else(ind_work == "yes" & individual_age >= 5 ,"yes","no",NULL)
+)
+ 
 
 if (population == "refugee") {
   indv_to_indv <- indv_to_indv %>% dplyr::mutate(
@@ -206,7 +219,8 @@ hh_to_indv1<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
   I.HH_CHAR.ind_6_59_months_hh.INDVHH=if_else(sum(I.INDV_CHAR.ind_6_59_months.INDV == "yes",na.rm = T) >0,"yes","no",NULL),
   I.HH_CHAR.ind_5_17_hh.INDVHH=if_else(sum(I.INDV_CHAR.ind_5_17.INDV == "yes",na.rm = T) >0,"yes","no",NULL),
   I.HEALTH.ind_need_treatment_hh.INDVHH=if_else(sum(ind_need_treatment== "yes",na.rm = T) >0,"yes","no",NULL),
-  I.NUTRITION.child_enrolment_nfp_tota.INDVHH = sum(child_enrolment_nfp == "yes",na.rm = T)
+  I.NUTRITION.child_enrolment_nfp_tota.INDVHH = sum(child_enrolment_nfp == "yes",na.rm = T),
+  I.HH_CHAR.ind_work_hh.INDVHH = if_else(any(ind_work == "yes" & individual_age > 17),"yes","no"),
   
   )
 
