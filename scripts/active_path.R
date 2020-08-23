@@ -40,8 +40,8 @@ if(population == "host"){
 audit_zipfile <-paste0(audit_zip_dir,"aBR5eNQQypf3BzASncrurM_",str_replace_all (day_to_run,"-","_"),".zip")
 copy_zip_to<-paste0("outputs/host/audit/",day_to_run,".zip")
 audit_node<-"/aBR5eNQQypf3BzASncrurM/"
-hh_path_clean <- "inputs/host_combind/clean_data/hh.csv"
-indv_path_clean <- "inputs/host_combind/clean_data/indv.csv"
+hh_path_clean <- "inputs/host/clean_data/hh.csv"
+indv_path_clean <- "inputs/host/clean_data/indv.csv"
 tool_path <- "DAP/host/tool/JMSNA2020_HC_KoBo_Training_v1.xls"
 pop_path <- "DAP/host/population/Population_Figures_2011_Census_HostCommunity.csv"
 recoding_output_hh <- "outputs/host/composite_indicator/composite_indicator.csv"
