@@ -5,7 +5,7 @@ library(stringr)
 library(lubridate)
 # -------------------------------------------------------------------------
 
-population<-c("host","refugee")[1]
+population<-c("host","refugee")[2]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 if(population == "host") {source("scripts/combine_host_data_v2.R")}
@@ -41,7 +41,6 @@ if(population == "refugee"){
   primary_and_above <- c("standard_5", "standard_6", "standard_7", "standard_8",
                          "standard_9", "standard_10", "standard_11", "tertiary_education")
   hh$datearrival_shelter <- hh$datearrival_shelter %>% ymd()
-
 }
 
 if(population != "refugee"){
