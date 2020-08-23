@@ -1,7 +1,8 @@
 library(tidyverse)
 library(butteR)
 
-population<- c("host","refugee")[1]
+write_csv<-c(T,F)[2]
+population<- c("host","refugee")[2]
 # READ IN A ALL COMPONENTS OF BOTH RAW AND CLEAN DATA
 if(population=="host"){
 raw_iom_hh<- read.csv("inputs/host/raw_data/HC_IOM_raw_data_final_hh.csv",
@@ -45,10 +46,14 @@ clean_hh<- bind_rows(clean_iom_hh %>% mutate(deviceid=as.character(deviceid)), c
 clean_indiv<-bind_rows(clean_iom_indiv, clean_unhcr_indiv)}
 
 if (population=="refugee"){
-  # clean_hh<- read.csv("")
-  # clean_indiv<- read.csv("")
-  # raw_hh <- 
-  # raw_indiv <- 
+  clean_hh<- read.csv("inputs/refugee/clean_data/ref_hh_clean.csv",
+                      stringsAsFactors = F, na.strings = c(""," ",'n/a',NA))
+  clean_indiv<- read.csv("inputs/refugee/clean_data/ref_indiv_clean.csv",
+  stringsAsFactors = F, na.strings = c(""," ",'n/a',NA))
+  raw_hh <-  read.csv("inputs/refugee/raw_data/refugee_raw_hh.csv",
+  stringsAsFactors = F, na.strings = c(""," ",'n/a',NA))
+  raw_indiv <- read.csv("inputs/refugee/raw_data/indv.csv",
+                        stringsAsFactors = F, na.strings = c(""," ",'n/a',NA))
 }
 
 
@@ -73,14 +78,14 @@ clean_indiv %>% filter(X_submission__uuid=="9b7883e2-f38a-45b1-8c8d-67e8e3659e26
 #   filter(X_submission__uuid %in% clean_hh_fixed$X_uuid)
 
 clean_indiv2<-clean_indiv %>%
-  mutate(individual_age=ifelse(individual_age==0,individual_age_mo/12, individual_age),
-         lt_5_yr_gte_6_mo= individual_age<5 & individual_age>=0.5,
+  mutate(individual_age_dbl=ifelse(individual_age==0,individual_age_mo/12, individual_age),
+         lt_5_yr_gte_6_mo= individual_age_dbl<5 & individual_age_dbl>=0.5,
          child_enrolment_nfp= ifelse(lt_5_yr_gte_6_mo==T,child_enrolment_nfp,NA),
          child_enrolment_nfp_count= ifelse(lt_5_yr_gte_6_mo==T,child_enrolment_nfp_count,0),
          child_nutrition_screened= ifelse(lt_5_yr_gte_6_mo==T,child_nutrition_screened,NA)
 
          ) %>% 
-  select(-lt_5_yr_gte_6_mo)
+  select(-lt_5_yr_gte_6_mo,-individual_age_dbl)
 
 clean_indiv2 %>% select(child_enrolment_nfp,child_enrolment_nfp_count)
 clean_indiv %>% filter(!is.na(child_enrolment_nfp)) %>% nrow()
@@ -103,10 +108,10 @@ clean_indiv2 %>% filter(!is.na(child_enrolment_nfp_count)) %>% nrow()
 
 
 uuid_gte_5_yr_lt_6_mo<-clean_indiv2 %>%  #INDIVIDUAL DATASET
-  mutate(individual_age=ifelse(individual_age==0,individual_age_mo/12, individual_age)) %>% 
+  mutate(individual_age_dbl=ifelse(individual_age==0,individual_age_mo/12, individual_age)) %>% 
   group_by(X_submission__uuid) %>%  # LOOK AT EACH FAMILY
   summarise(
-    lt_5_HH= if_else(any(individual_age<5 & individual_age>=0.5),1,0) # IF ANY FAMILY HAS A CHILD LESS THAN 5, BUT GREATER THAN 6 MONTH GIVE THAT FAMILY A 1
+    lt_5_HH= if_else(any(individual_age_dbl<5 & individual_age_dbl>=0.5),1,0) # IF ANY FAMILY HAS A CHILD LESS THAN 5, BUT GREATER THAN 6 MONTH GIVE THAT FAMILY A 1
   ) %>% 
   filter(lt_5_HH==0) %>% #NOW LOOK AT ALL FAMILIES THAT DO NOT HAV CHILD LESS THAN FICE, BUT GREATER THAN 6 MONTH
   pull(X_submission__uuid) #EXTRACT THOSE UUIDS
@@ -129,7 +134,7 @@ fix_nutr_cols<- function(x){
 }
 
 
-#need  to include informed consent! 
+ 
 child_enrolment_total_fixed_from_indiv<- clean_indiv2 %>% 
   # filter(X_submission__uuid %in% clean_hh_fixed$X_uuid) %>% 
   group_by(X_submission__uuid) %>% 
@@ -155,22 +160,33 @@ clean_hh_chid_enrollment_nfp_fixed %>%
 
 # clean_hh_chid_enrollment_nfp_fixed %>% select(child_enrolment_nfp_total.x,child_enrolment_nfp_total.y)
 
-
 clean_hh_chid_enrollment_nfp_fixed %>% nrow()
 child_enrolment_total_fixed_from_indiv %>% nrow()
 
-clean_hh_fixed<-clean_hh_chid_enrollment_nfp_fixed  %>%
-  select(colnames(clean_hh)) %>% # GET ORDER BACK TO ORIGINAL AGAIN
-  mutate(
-    nutrition_pack=ifelse(X_uuid %in% uuid_gte_5_yr_lt_6_mo,NA,nutrition_pack )
+if(population=="refugee"){
+  clean_hh_fixed<-clean_hh_chid_enrollment_nfp_fixed  %>%
+    select(colnames(clean_hh)) %>% # GET ORDER BACK TO ORIGINAL AGAIN
+    mutate_at(
+      .vars = nutr_barrier_cols,.funs = fix_nutr_cols
+    ) %>% 
+    mutate_at(
+      .vars = nutr_barrier_choices_col,
+      .funs = ~as.integer(.)
+    ) 
+}
+if(population=="host"){
+  clean_hh_fixed<-clean_hh_chid_enrollment_nfp_fixed  %>%
+    select(colnames(clean_hh)) %>% # GET ORDER BACK TO ORIGINAL AGAIN
+    mutate(
+      nutrition_pack=ifelse(X_uuid %in% uuid_gte_5_yr_lt_6_mo,NA,nutrition_pack )
     ) %>%
-  mutate_at(
-    .vars = nutr_barrier_cols,.funs = fix_nutr_cols
-  ) %>% 
-  mutate_at(
-    .vars = nutr_barrier_choices_col,
-    .funs = ~as.integer(.)
-  ) 
+    mutate_at(
+      .vars = nutr_barrier_cols,.funs = fix_nutr_cols
+    ) %>% 
+    mutate_at(
+      .vars = nutr_barrier_choices_col,
+      .funs = ~as.integer(.)
+    ) }
 
 
 #MAKE SURE CHANGES WAS IMPLEMENTED CORRECTLY
@@ -182,12 +198,24 @@ clean_indiv_fixed<-clean_indiv2 %>%
 
 #CHECK TO MAKE SURE IT IS CORREFT LENGTH
 clean_indiv_fixed$X_submission__uuid %>% unique() %>% length()
-
+clean_hh_fixed %>% filter(informed_consent=="yes") %>%  nrow()
 
 
 
 # NOW WE CAN GENERATE THE CLEANING LOGS
 cleaning_logs<-list()
+
+dim(raw_hh$X)
+table(clean_hh$X)
+
+if (population=="refugee"){
+  colnames(raw_hh)[!colnames(raw_hh) %in% colnames(clean_hh_fixed)]
+clean_hh_fixed<-clean_hh_fixed %>% 
+  rename(feedback_problems_other="X")
+colnames(raw_hh)[!colnames(raw_hh) %in% colnames(clean_hh_fixed)]
+
+}
+
 
 cleaning_logs$hh<-butteR::df_comparison_log(raw_data = raw_hh,
                                             clean_data = clean_hh_fixed,
@@ -209,15 +237,27 @@ cleaning_logs_merged<-bind_rows(cleaning_logs) %>%
   mutate(description= "") %>% 
   select(uuid, data_type, change_type, column_changed, old_value, new_value, description)
 
-cleaning_logs_merged$column_changed %>% table() %>% sort() %>% data.frame() %>% filter(str_detect(.,"^child_enrolment_nfp"))
+cleaning_logs_merged$column_changed %>% table() %>% sort() %>% data.frame() #%>% filter(str_detect(.,"^child_enrolment_nfp"))
 
 cleaning_logs_merged_filtered<-cleaning_logs_merged %>% 
   filter(!column_changed %in% c("X_parent_index", "X_index"))
 
-# cleaning_logs_merged_filtered %>% write.csv("outputs/20200822_Host_Community_MSNA_2020_Cleaning_Log.csv",row.names = F)
-# clean_hh_fixed %>% write.csv("inputs/host/clean_data/hh.csv",row.names = F)
-# clean_indiv_fixed %>% write.csv("inputs/host/clean_data/indv.csv",row.names = F)
 
+cleaning_logs_merged_filtered %>% write.csv("outputs/20200823_Refugee_Community_MSNA_2020_Cleaning_Log.csv",row.names = F)
+
+#remove sensitive data
+
+if(population=="host" & write_csv==T){
+clean_hh_fixed %>% write.csv("inputs/host/clean_data/20200823_host_comm_hh.csv",row.names = F, na="")
+clean_indiv_fixed %>% write.csv("inputs/host/clean_data/20200823_host_comm_indiv.csv",row.names = F,na="")
+}
+
+if(population=="refugee" & write_csv==T){
+  clean_hh_fixed %>% write.csv("inputs/refugee/clean_data/20200823_refugee_hh.csv",row.names = F, na="")
+  clean_indiv_fixed %>% write.csv("inputs/refugee/clean_data/20200823_refugee_indiv.csv",row.names = F,na="")
+  
+  
+}
 cleaning_logs_merged_filtered %>% 
   filter(str_detect(column_changed,"^nutrition_barriers."))  %>%
   filter(!str_detect(column_changed,"other$")) %>% 
