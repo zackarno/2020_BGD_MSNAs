@@ -214,7 +214,9 @@ cleaning_logs_merged$column_changed %>% table() %>% sort() %>% data.frame() %>% 
 cleaning_logs_merged_filtered<-cleaning_logs_merged %>% 
   filter(!column_changed %in% c("X_parent_index", "X_index"))
 
-cleaning_logs_merged_filtered %>% write.csv("outputs/20200822_Host_Community_MSNA_2020_Cleaning_Log.csv",row.names = F)
+# cleaning_logs_merged_filtered %>% write.csv("outputs/20200822_Host_Community_MSNA_2020_Cleaning_Log.csv",row.names = F)
+# clean_hh_fixed %>% write.csv("inputs/host/clean_data/hh.csv",row.names = F)
+# clean_indiv_fixed %>% write.csv("inputs/host/clean_data/indv.csv",row.names = F)
 
 cleaning_logs_merged_filtered %>% 
   filter(str_detect(column_changed,"^nutrition_barriers."))  %>%
