@@ -72,7 +72,7 @@ clean_indiv %>% filter(X_submission__uuid=="9b7883e2-f38a-45b1-8c8d-67e8e3659e26
 #   filter(X_submission__uuid %in% clean_hh_fixed$X_uuid)
 
 clean_indiv2<-clean_indiv %>%
-  mutate(individual_age=ifelse(individual_age==0,individual_age_mo/12, individual_age),
+  mutate(individual_age=ifelse(individual_age<1,0,individual_age),
          lt_5_yr_gte_6_mo= individual_age<5 & individual_age>=0.5,
          child_enrolment_nfp= ifelse(lt_5_yr_gte_6_mo==T,child_enrolment_nfp,NA),
          child_enrolment_nfp_count= ifelse(lt_5_yr_gte_6_mo==T,child_enrolment_nfp_count,0),
