@@ -183,6 +183,9 @@ clean_indiv_fixed<-clean_indiv2 %>%
 #CHECK TO MAKE SURE IT IS CORREFT LENGTH
 clean_indiv_fixed$X_submission__uuid %>% unique() %>% length()
 
+
+
+
 # NOW WE CAN GENERATE THE CLEANING LOGS
 cleaning_logs<-list()
 
