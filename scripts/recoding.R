@@ -5,10 +5,10 @@ library(stringr)
 library(lubridate)
 # -------------------------------------------------------------------------
 
-population<-c("host","refugee")[2]
+population<-c("host","refugee")[1]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
-if(population == "host") {source("scripts/combine_host_data_v2.R")}
+source("scripts/combine_host_data_v2.R")
 source("scripts/active_path.R")
 
 # read_data ---------------------------------------------------------------
@@ -126,8 +126,7 @@ if (population != "refugee") {
   )
 }
 
-I.EDU.ind_ed_TLC_3_5.INDV = case_when(!individual_age %in% 3:5 ~ NA_character_,
-                                      ind_ed_TLC == "yes" ~ "yes",T~ "no"),
+
 # individual to individual  -----------------------------------------------
 indv_to_indv<- indv %>% dplyr::mutate(
   I.INDV_CHAR.age_groups.INDV= if_else( individual_age %in% 0:4,"0-4",
@@ -280,3 +279,4 @@ if (write_output == "yes") {
   write.csv(indv_to_indv,paste0("outputs/",population,"/composite_indicator/",str_replace_all(day_to_run,"-","_"),"_INDV_composite_indicator.csv"))
   write.csv(indv_to_indv,paste0("outputs/",population,"/composite_indicator/INDV_composite_indicator.csv"))
 }
+
