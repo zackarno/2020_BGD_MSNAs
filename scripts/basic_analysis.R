@@ -157,6 +157,8 @@ is_not_empty<-function(x){ all(is.na(x))==FALSE}
 cols_to_analyze_indv<-indv_with_weights %>% select(-starts_with("Other"), -ends_with("_other")) %>%
   select_if(.,is_not_empty) %>% select(-dont_analyze_in_data_indv) %>% colnames() 
 
+dfsvy_indv$variables$I.INDV_CHAR.age_groups_0_4.INDV<- forcats::fct_expand(dfsvy_indv$variables$I.INDV_CHAR.age_groups_0_4.INDV,c( "0-4", "yes"))
+
 
 basic_analysis_indv<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv)
 basic_analysis_indv_by_gender<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv,

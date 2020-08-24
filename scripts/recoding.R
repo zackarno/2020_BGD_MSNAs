@@ -5,10 +5,10 @@ library(stringr)
 library(lubridate)
 # -------------------------------------------------------------------------
 
-population<-c("host","refugee")[1]
+population<-c("host","refugee")[2]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
-source("scripts/combine_host_data_v2.R")
+source("scripts/merge_and_clean_final_dataset.R")
 source("scripts/active_path.R")
 
 # read_data ---------------------------------------------------------------
@@ -16,6 +16,14 @@ source("scripts/active_path.R")
 hh <- read.csv(hh_path_clean, stringsAsFactors = FALSE, na.strings=c("", " ", NA)) %>% 
   filter(informed_consent == "yes")
 indv <- read.csv(indv_path_clean, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
+
+if ( population == "host") {
+  number_response_by_union = hh %>% dplyr::group_by(union_name) %>% summarise(
+    number_of_survey = n()
+  )
+write.csv(number_response_by_union,"outputs/host/number_of_survey.csv")
+  }
+
 
 # recoding ----------------------------------------------------------------
 
@@ -28,12 +36,24 @@ critical_handwashing<- c("handwashing_three_times.before_eating",
                          "handwashing_three_times.before_cooking", "handwashing_three_times.after_defecation", 
                          "handwashing_three_times.before_breastfeeding", "handwashing_three_times.before_feeding_children", 
                          "handwashing_three_times.after_handling_a_childs_stool")    
-income_sources_all <- hh %>% dplyr::select(dplyr::starts_with("income_source.")) %>% colnames() %>% dput()
+
+income_sources_all1 <- hh %>% dplyr::select(dplyr::starts_with("income_source.")) %>% colnames() %>% dput()
 income_sources_yes <- c("income_source.remittances_from_abroad","income_source.assistance_from_relatives_and_friends",
                         "income_source.other_cash_assistance","income_source.borrowed_money")
 income_sources_no <- hh %>% dplyr::select(c(dplyr::starts_with("income_source."),-income_sources_yes)) %>% 
                                                                   colnames() %>% dput()
 
+shelter_improvements_reason <- hh %>% dplyr::select(dplyr::starts_with("improvement.")) %>% 
+  select(-contains("no_improvement")) %>% select(-contains("dont_know")) %>% colnames() %>% dput()
+
+shelter_issue_cols <- hh %>% dplyr::select(dplyr::starts_with("shelter_issues.")) %>% 
+  select(-contains("no_issues")) %>% select(-contains("dont_know")) %>% colnames() %>% dput()
+
+cooking_fuel_cols <- hh %>% dplyr::select(dplyr::starts_with("cooking_fuel.")) %>% 
+  select(-contains("none")) %>% select(-contains("dont_know")) %>% colnames() %>% dput()
+
+market_problem <- hh %>% dplyr::select(dplyr::starts_with("market_problems.")) %>% 
+  select(-contains("none")) %>% select(-contains("dont_know")) %>% colnames() %>% dput()
 
 if(population == "refugee"){
   edu_no_formal <- c("no_education","madrassa_only") 
@@ -43,12 +63,11 @@ if(population == "refugee"){
   hh$datearrival_shelter <- hh$datearrival_shelter %>% ymd()
 }
 
-if(population != "refugee"){
-  edu_no_formal <- c("vocational","madrassa_only") 
-  edu_some_primary <- c("1", "2", "3", "4")
-  primary_and_above <- c("5", "6", "7", "8",
-                         "9", "10", "11","12", "above_grade_12"
-  )
+
+if(population == "host"){
+  primary_or_less <- c("madrassa_only","1","2","3","4","5") 
+  some_secondary <- c("vocational","6", "7", "8", "9","10","11")
+  secondary_and_above <- c("12", "above_grade_12")
 }
 
 
@@ -61,16 +80,24 @@ hh_to_hh <- hh %>% mutate(
   I.HH_CHAR.single_hoh.HH= if_else(hoh_marital %in% single_hoh,"yes","no"),
   I.HH_CHAR.elderly_hoh.HH= if_else(I.HH_CHAR.age_hoh.HH >59,"yes","no"),
   I.HH_CHAR.large_hh.HH = if_else(hh_size >4,"yes","no"),
-  I.HH_CHAR.highest_education.HH = if_else(edu_highest %in% edu_no_formal,"no_formal_education",
-                                if_else(edu_highest %in% edu_some_primary,"some_primary",
-                                        if_else(edu_highest %in% primary_and_above,"primary_and_above","ERROR",NULL))),
   I.HEALTH.disabled_hh.HH = if_else(disability_seeing %in% disability|disability_hearing %in% disability|
                             disability_walking%in% disability|disability_remembering %in% disability|
                             disability_self_care%in% disability| disability_speaking %in% disability,"yes","no",NULL ),
   I.FSL.no_income.HH = if_else(income_source.none == 1,"yes","no",NULL),
   I.FSL.remittances.HH = if_else(income_source.remittances_from_abroad == 1,"yes","no",NULL),
+  shelter_improvements_reason_rs = rowSums(hh[,shelter_improvements_reason],na.rm = T),
+  I.SNFI.atlst_one_shelter_improvements_reason.HH = if_else(shelter_improvements_reason_rs > 0,"yes","no",NULL),
   # I.SNFI.improvement_reason_none.HH= na_if(improvement_reason.no_need_to_improve,y = 1),
+  shelter_issue_cols_rs = rowSums(hh[,shelter_issue_cols],na.rm = T),
+  I.SNFI.improvements_despite_reporting_issue.HH = if_else(improvement.no_improvement == 1 & shelter_issue_cols_rs >0, "yes","no",NULL),
+  cooking_fuel_rs =rowSums(hh[,cooking_fuel_cols],na.rm = T),
+  I.SNFI.lpg_only.HH = if_else(cooking_fuel_rs == 1 & (cooking_fuel.receiving_lpg_refills == 1 |
+                                                         cooking_fuel.buying_lpg_refills == 1),"yes",
+                                if_else(cooking_fuel_rs == 2 & (cooking_fuel.receiving_lpg_refills == 1 &
+                                                         cooking_fuel.buying_lpg_refills == 1),"yes","no",NULL)),
   I.EDU.not_send_back_to_school_hh.HH= if_else(not_send_back_to_school_total >= 1, "no", "yes",NULL),
+  market_problem_rs = rowSums(hh[,market_problem],na.rm = T),
+  I.FSL.allst_one_market_problme= if_else(market_problem_rs > 0, "yes","no",NULL),
   I.HEALTH.health_dist_more_60.HH= if_else(health_distance  %in% health_distant, "yes","no"),
   I.HEALTH.plw_enrolment_nfp.HH= if_else( plw_enrolment_nfp >= 1,"yes","no" ),
   I.FSL.fcs.HH= (cereals_and_tubers*2 + pulses*3 +
@@ -117,12 +144,12 @@ if (population == "refugee") {
     
     )
 }
-if (population != "refugee") {
+if (population == "host") {
   hh_to_hh <- hh_to_hh %>% dplyr::mutate(
     I.HH_CHAR.valid_id_hh= if_else(valid_id == over_18_HH_count,"yes","no"),
-    I.HH_CHAR.highest_education.HH= if_else(edu_highest %in% edu_no_formal, "No formal education",
-                                 if_else(edu_highest %in% edu_some_primary, "Some primary",
-                                         if_else(edu_highest %in% primary_and_above, "Primary and above","",missing = NULL )))
+    I.HH_CHAR.highest_education.HH= if_else(edu_highest %in% primary_or_less, "primary_or_less",
+                                 if_else(edu_highest %in% some_secondary, "some_secondary",
+                                         if_else(edu_highest %in% secondary_and_above, "secondary_and_above","",missing = NULL )))
   )
 }
 
@@ -135,6 +162,8 @@ indv_to_indv<- indv %>% dplyr::mutate(
                                          if_else(individual_age %in% 18:24, "18-24",
                                                  if_else(individual_age %in% 25:59, "25-59",
                                                          if_else(individual_age>=60, "60+","error",missing = NULL)))))),
+  I.ind_gender = na_if(ind_gender, y="other"),
+  I.INDV_CHAR.age_group_gender.INDV = if_else(!is.na(I.ind_gender),paste0(I.INDV_CHAR.age_groups.INDV,"_",I.ind_gender),NULL,NULL),
   I.HEALTH.ind_need_treatment_0_17.INDV= case_when(!individual_age %in% 0:17  ~ NA_character_,
                         ind_need_treatment== "yes"~ "yes",T~ "no"),
   I.HEALTH.ind_need_treatment_18_59.INDV= case_when(!individual_age %in% 18:59  ~ NA_character_,
@@ -151,6 +180,7 @@ indv_to_indv<- indv %>% dplyr::mutate(
   I.INDV_CHAR.ind_work_5_older.INDV  = case_when(!individual_age >= 5 ~ NA_character_,
                                                  ind_work== "yes"~ "yes",T~ "no"),
   
+  # I.INDV_CHAR.ind_3_5.INDV= if_else( individual_age %in% 3:5, "yes","no"),
   I.INDV_CHAR.ind_3_5.INDV= if_else( individual_age %in% 3:5, "yes","no"),
   I.INDV_CHAR.ind_6_14.INDV=if_else( individual_age %in% 6:14, "yes","no"),
   I.INDV_CHAR.ind_15_18.INDV=if_else( individual_age %in% 15:18, "yes","no"),
