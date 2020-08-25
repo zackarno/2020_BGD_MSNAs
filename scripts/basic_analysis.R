@@ -170,7 +170,7 @@ if (write_output == "yes") {
 
 # individual loop ---------------------------------------------------------
 
-df_weight <- df %>% select(X_uuid,survey_weight)
+df_weight <- df %>% select(X_uuid,survey_weight,df_strata)
 indv_with_weights <- ind_data %>% left_join(df_weight,by=c("X_submission__uuid"="X_uuid"))
 
 indv_with_weights<- indv_with_weights %>% filter(!is.na(survey_weight))
@@ -200,17 +200,11 @@ if(population == "host"){
 
 
 basic_analysis_indv<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv)
-basic_analysis_indv_by_gender<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv,
-                                                         aggregation_level = "ind_gender" )
-
-# basic_analysis_indv_by_gender <- basic_analysis_indv_by_gender %>% select(-survey_weight) %>% filter(ind_gender != "other")
-
-# basic_analysis_indv_by_gender2 <- basic_analysis_indv_by_gender %>% pivot_wider(-ind_gender,
-#                                      names_from = ind_gender, 
-#                                      values_from = ind_birth_place.at_a_clinic:school_children)
+basic_analysis_indv_by_strata<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv,
+                                                         aggregation_level = df_strata )
 
 
 if (write_output == "yes") {
   write.csv(basic_analysis_indv,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_INDV.csv"))
-  write.csv(basic_analysis_indv_by_gender,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_by_gender_INDV.csv"))
+  write.csv(basic_analysis_indv_by_strata,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_by_gender_INDV.csv"))
   }
