@@ -140,7 +140,9 @@ is_not_empty<-function(x){ all(is.na(x))==FALSE}
 cols_to_analyze<-df %>% select(-starts_with("Other"), -ends_with("_other")) %>%
   select_if(.,is_not_empty) %>% select(-dont_analyze_in_data) %>% colnames() 
 
-cols_to_analyze <- c(cols_to_analyze,"masks_source.mask_source_other") 
+yes_other_cols <- df %>%  select(ends_with(".yes_other")) %>% colnames() %>% dput()
+
+cols_to_analyze <- c(cols_to_analyze,"masks_source.mask_source_other",yes_other_cols) 
 
 if(population == "host"){
 dfsvy$variables$I.FSL.food_source_assistance.HH<- forcats::fct_expand(dfsvy$variables$I.FSL.food_source_assistance.HH,c( "no", "yes"))
@@ -174,12 +176,6 @@ indv_with_weights <- ind_data %>% left_join(df_weight,by=c("X_submission__uuid"=
 indv_with_weights<- indv_with_weights %>% filter(!is.na(survey_weight))
 
 
-select_multiples_indv<-select_multiples[select_multiples %in% colnames(ind_data)]
-
-indv_with_weights<-indv_with_weights %>% 
-  mutate_at(.vars = select_multiples_indv, ~fct_expand(1,0))
-
-
 indv_with_weights <- butteR::refactor_to_xlsform(data = indv_with_weights,kobo_survey = tool_survey_sheet ,
                                   kobo_choices = tool_choices_sheet ,label_column = "label::english")
 
@@ -198,10 +194,20 @@ cols_to_analyze_indv<-indv_with_weights %>% select(-starts_with("Other"), -ends_
   select_if(.,is_not_empty) %>% select(-dont_analyze_in_data_indv) %>% colnames() 
 
 
+if(population == "host"){
+  dfsvy_indv$variables$I.HEALTH.ind_need_treatment_DONT_KNOW_f_60.INDV<- forcats::fct_expand(dfsvy_indv$variables$I.HEALTH.ind_need_treatment_DONT_KNOW_f_60.INDV,c( "no", "yes"))
+}
+
+
 basic_analysis_indv<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv)
 basic_analysis_indv_by_gender<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv,
                                                          aggregation_level = "ind_gender" )
 
+# basic_analysis_indv_by_gender <- basic_analysis_indv_by_gender %>% select(-survey_weight) %>% filter(ind_gender != "other")
+
+# basic_analysis_indv_by_gender2 <- basic_analysis_indv_by_gender %>% pivot_wider(-ind_gender,
+#                                      names_from = ind_gender, 
+#                                      values_from = ind_birth_place.at_a_clinic:school_children)
 
 
 if (write_output == "yes") {
