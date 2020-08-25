@@ -5,7 +5,7 @@ library(stringr)
 library(lubridate)
 # -------------------------------------------------------------------------
 
-population<-c("host","refugee")[2]
+population<-c("host","refugee")[1]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 source("scripts/merge_and_clean_final_dataset.R")
@@ -262,8 +262,8 @@ I.EDU.ind_nonformal_learn_18_24.INDV=case_when(!individual_age %in% 18:24  ~ NA_
 
 hh_to_indv1<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
   
-  dependents = (length(individual_age[individual_age<15]) + length(individual_age[individual_age>64])),
-  non_dependent = (length(individual_age[individual_age %in% 15:64])),
+  dependents = sum(individual_age<15,na.rm = T) + sum(individual_age>64,na.rm = T),
+  non_dependent = sum(individual_age %in% 15:64,na.rm = T),
   I.HH_CHAR.dep_ratio.INDVHH= (dependents/non_dependent),
   I.HH_CHAR.no_working_age.INDVHH=if_else(non_dependent== 0, "yes","no"),
   I.HH_CHAR.no_male_working_age.INDVHH= if_else(any(individual_age %in% 15:64 & ind_gender== "male"),"no","yes"),

@@ -4,9 +4,10 @@ library(tidyverse)
 library(butteR)
 library(survey)
 library(srvyr)
+library(forcats)
 library(dplyr)
 
-population<-c("host","refugee")[2]
+population<-c("host","refugee")[1]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 source("scripts/active_path.R")
@@ -80,6 +81,33 @@ sf_with_weights <- sf_with_weights %>% select(upazilla_name,survey_weight)
 
 df <- hh_data %>% left_join(sf_with_weights)
 
+# lt<-butteR::make_xlsform_lookup_table(kobo_survey = tool_survey_sheet,kobo_choices = tool_choices_sheet
+#                                       ,label_column = "label::english")
+# 
+# 
+# select_multiples<-lt %>% filter(str_detect(question_type, "^select_mult")) %>% pull(xml_format_data_col) %>% 
+#   unique()
+# 
+# select_multiples_hh<-select_multiples[select_multiples %in% colnames(hh_data)]
+# 
+#  
+#  df<-df %>%
+#    mutate_at(select_multiples_hh, function(x) fct_expand(as.factor(x),c("0","1")))
+
+
+ # df<-df %>%
+ #   mutate_at(.vars = select_multiples_hh, ~fct_expand("0","1"))
+
+# 
+#  df$modality_shelter.materials %>% AMR::freq()
+#  df$shelter_issues.shelter_is_hard_to_access %>% AMR::freq()
+#  
+#  df$shelter_issues.shelter_is_hard_to_access %>% unique()
+ 
+
+df <- butteR::refactor_to_xlsform(data = df,kobo_survey = tool_survey_sheet ,
+                                  kobo_choices = tool_choices_sheet ,label_column = "label::english")
+
 
 # butter analysis  --------------------------------------------------------
 dfsvy<-svydesign(ids = ~1,strata = formula(paste0("~",df_strata)),data = df,weights = formula(paste0("~", "survey_weight")))
@@ -112,6 +140,7 @@ is_not_empty<-function(x){ all(is.na(x))==FALSE}
 cols_to_analyze<-df %>% select(-starts_with("Other"), -ends_with("_other")) %>%
   select_if(.,is_not_empty) %>% select(-dont_analyze_in_data) %>% colnames() 
 
+cols_to_analyze <- c(cols_to_analyze,"masks_source.mask_source_other") 
 
 if(population == "host"){
 dfsvy$variables$I.FSL.food_source_assistance.HH<- forcats::fct_expand(dfsvy$variables$I.FSL.food_source_assistance.HH,c( "no", "yes"))
@@ -144,6 +173,17 @@ indv_with_weights <- ind_data %>% left_join(df_weight,by=c("X_submission__uuid"=
 
 indv_with_weights<- indv_with_weights %>% filter(!is.na(survey_weight))
 
+
+select_multiples_indv<-select_multiples[select_multiples %in% colnames(ind_data)]
+
+indv_with_weights<-indv_with_weights %>% 
+  mutate_at(.vars = select_multiples_indv, ~fct_expand(1,0))
+
+
+indv_with_weights <- butteR::refactor_to_xlsform(data = indv_with_weights,kobo_survey = tool_survey_sheet ,
+                                  kobo_choices = tool_choices_sheet ,label_column = "label::english")
+
+
 dfsvy_indv<-svydesign(ids = ~1,data = indv_with_weights,weights = formula(paste0("~", "survey_weight")))
 
 dont_analyze_indv<-c( "X", "parent_instance_name","repeat_instance_name",
@@ -156,8 +196,6 @@ is_not_empty<-function(x){ all(is.na(x))==FALSE}
 
 cols_to_analyze_indv<-indv_with_weights %>% select(-starts_with("Other"), -ends_with("_other")) %>%
   select_if(.,is_not_empty) %>% select(-dont_analyze_in_data_indv) %>% colnames() 
-
-dfsvy_indv$variables$I.INDV_CHAR.age_groups_0_4.INDV<- forcats::fct_expand(dfsvy_indv$variables$I.INDV_CHAR.age_groups_0_4.INDV,c( "0-4", "yes"))
 
 
 basic_analysis_indv<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv)
