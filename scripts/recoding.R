@@ -5,7 +5,7 @@ library(stringr)
 library(lubridate)
 # -------------------------------------------------------------------------
 
-population<-c("host","refugee")[1]
+population<-c("host","refugee")[2]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 source("scripts/merge_and_clean_final_dataset.R")
@@ -438,7 +438,18 @@ compile_dataset <- hh_to_hh %>% left_join(hh_to_indv,by =c ("X_uuid"="X_submissi
                                                       I.HEALTH.plw_total_hh.HH == "yes","yes","no",NULL)
 )
 
+rank_cols<-compile_dataset %>% select(starts_with("rank"),-ends_with("label")) %>% colnames()
 
+compile_dataset <- compile_dataset %>% 
+  mutate_at(
+    rank_cols,~case_when(
+      .==3~1,
+      .==1~3,
+      .==2~2,
+      is.na(.)~0,
+      TRUE~NA_real_)
+  )
+compile_dataset$I.HH_CHAR.dep_ratio.INDVHH <- na_if(compile_dataset$I.HH_CHAR.dep_ratio.INDVHH, y = Inf)
 
 if (write_output == "yes") {
   write.csv(compile_dataset,paste0("outputs/",population,"/composite_indicator/",str_replace_all(day_to_run,"-","_"),"_composite_indicator.csv"))
