@@ -435,7 +435,9 @@ hh_to_indv <- hh_to_indv1 %>% left_join(hh_to_indv2)
 
 compile_dataset <- hh_to_hh %>% left_join(hh_to_indv,by =c ("X_uuid"="X_submission__uuid")) %>% mutate(
   I.NUTRITION.i.ind_6_59_months_plw_hh.HH = if_else(I.HH_CHAR.ind_6_59_months_hh.INDVHH == "yes" |
-                                                      I.HEALTH.plw_total_hh.HH == "yes","yes","no",NULL)
+                                                      I.HEALTH.plw_total_hh.HH == "yes","yes","no",NULL),
+  I.HH_CHAR.dep_percent_working_age.INDVHH= (non_dependent/hh_size)*100
+  
 )
 
 rank_cols<-compile_dataset %>% select(starts_with("rank"),-ends_with("label")) %>% colnames()
@@ -459,3 +461,22 @@ if (write_output == "yes") {
   write.csv(indv_to_indv,paste0("outputs/",population,"/composite_indicator/INDV_composite_indicator.csv"))
 }
 
+
+# response ----------------------------------------------------------------
+
+if (population == "host"){
+  
+  response_by_upazilla <- hh %>% dplyr::group_by(upazilla_name) %>% dplyr::summarise(
+    I.EDU.not_send_back_to_school_total.response= sum(not_send_back_to_school_total,na.rm = T) / sum(school_children_total,na.rm = T)
+    )
+}
+
+if (population == "refugee"){
+
+response_by_upazilla <- hh %>% dplyr::group_by(upazila) %>% dplyr::summarise(
+  I.EDU.remote_learning_all.response= sum(remote_learning_total,na.rm = T) / sum(school_children_total,na.rm = T),
+  I.EDU.not_send_back_to_school_total.response= sum(not_send_back_to_school_total,na.rm = T) / sum(school_children_total,na.rm = T)
+  )
+}
+
+write.csv(response_by_upazilla,paste0("outputs/butteR_basic_analysis/",population,"/response_level_analysis_by_upzilaa.csv"))

@@ -108,7 +108,10 @@ df <- hh_data %>% left_join(sf_with_weights)
 df <- butteR::refactor_to_xlsform(data = df,kobo_survey = tool_survey_sheet ,
                                   kobo_choices = tool_choices_sheet ,label_column = "label::english")
 
+rank_cols<-df %>% select(starts_with("rank"),-ends_with("label")) %>% colnames()
 
+df <- df %>% mutate_at(rank_cols,function(x) (as.character(x)))
+df <- df %>% mutate_at(rank_cols,function(x) (as.integer(x)))
 # butter analysis  --------------------------------------------------------
 dfsvy<-svydesign(ids = ~1,strata = formula(paste0("~",df_strata)),data = df,weights = formula(paste0("~", "survey_weight")))
 
@@ -183,8 +186,14 @@ if (write_output == "yes") {
 
 
 # individual loop ---------------------------------------------------------
-
+if(population == "host"){
 df_weight <- df %>% select(X_uuid,survey_weight,df_strata,resp_gender)
+}
+
+if(population == "refugee"){
+  df_weight <- df %>% select(X_uuid,survey_weight,"upazila",resp_gender)
+}
+
 indv_with_weights <- ind_data %>% left_join(df_weight,by=c("X_submission__uuid"="X_uuid"))
 
 indv_with_weights<- indv_with_weights %>% filter(!is.na(survey_weight))
@@ -224,11 +233,19 @@ if(population == "refugee"){
 
 
 basic_analysis_indv<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv)
-basic_analysis_indv_by_strata<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv,
-                                                         aggregation_level = df_strata )
-
 basic_analysis_indv_by_resp_gender<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv,
                                                          aggregation_level = "resp_gender" )
+
+if (population == "host"){
+  basic_analysis_indv_by_strata<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv,
+                                                           aggregation_level = df_strata )
+  
+}
+if (population == "refugee"){
+  basic_analysis_indv_by_strata<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv,
+                                                           aggregation_level = "upazila" )
+  
+}
 
 
 if (write_output == "yes") {
