@@ -1,6 +1,8 @@
 library(tidyverse)
 library(butteR)
 
+write_csv<-c(T,F)[1]
+
 # READ IN A ALL COMPONENTS OF BOTH RAW AND CLEAN DATA
 if(population=="host"){
   raw_iom_hh<- read.csv("inputs/host/raw_data/HC_IOM_raw_data_final_hh.csv",
@@ -41,19 +43,34 @@ if(population=="host"){
   
   
   clean_hh<- bind_rows(clean_iom_hh %>% mutate(deviceid=as.character(deviceid)), clean_unhcr_hh)
-  clean_indiv<-bind_rows(clean_iom_indiv, clean_unhcr_indiv)}
+  clean_indiv<-bind_rows(clean_iom_indiv, clean_unhcr_indiv)
+  }
 
 if (population=="refugee"){
   clean_hh<- read.csv("inputs/refugee/clean_data/ref_hh_clean.csv",
                       stringsAsFactors = F, na.strings = c(""," ",'n/a',NA))
   clean_indiv<- read.csv("inputs/refugee/clean_data/ref_indiv_clean.csv",
-                         stringsAsFactors = F, na.strings = c(""," ",'n/a',NA))
+                         stringsAsFactors = F, na.strings = c(""," ",'n/a',NA)) %>% 
+    filter(!is.na(repeat_instance_name)) # there is a record that is NA for the whole row and uud
+  
   raw_hh <-  read.csv("inputs/refugee/raw_data/refugee_raw_hh.csv",
                       stringsAsFactors = F, na.strings = c(""," ",'n/a',NA))
   raw_indiv <- read.csv("inputs/refugee/raw_data/refugee_raw_indiv.csv",
                         stringsAsFactors = F, na.strings = c(""," ",'n/a',NA))
 }
 
+which(!clean_indiv$repeat_instance_name %in% raw_indiv$repeat_instance_name)
+which(!clean_indiv$X_submission__uuid %in% raw_indiv$X_submission__uuid)
+
+clean_indiv %>%dim()
+# clean_hh %>%
+# filter(informed_consent=="yes",is.na(datearrival_shelter)) %>%
+# select(datearrival_shelter)
+
+
+# clean_hh_fixed %>%
+#   filter(informed_consent=="yes",is.na(datearrival_shelter)) %>%
+#   select(datearrival_shelter)
 
 
 
@@ -80,6 +97,7 @@ clean_indiv2<-clean_indiv %>%
          lt_5_yr_gte_6_mo= individual_age_dbl<5 & individual_age_dbl>=0.5,
          child_enrolment_nfp= ifelse(lt_5_yr_gte_6_mo==T,child_enrolment_nfp,NA),
          child_enrolment_nfp_count= ifelse(lt_5_yr_gte_6_mo==T,child_enrolment_nfp_count,0),
+         child_enrolment_nfp_count= ifelse(lt_5_yr_gte_6_mo==T & child_enrolment_nfp=="yes",1,0),
          child_nutrition_screened= ifelse(lt_5_yr_gte_6_mo==T,child_nutrition_screened,NA)
          
   ) %>% 
