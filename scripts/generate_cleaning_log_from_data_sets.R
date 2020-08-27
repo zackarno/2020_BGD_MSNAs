@@ -3,7 +3,7 @@ library(butteR)
 library(glue)
 
 
-write_csv<-c(T,F)[1]
+write_csv<-c(T,F)[2]
 population<- c("host","refugee")[2]
 # READ IN A ALL COMPONENTS OF BOTH RAW AND CLEAN DATA
 if(population=="host"){
@@ -276,13 +276,13 @@ cleaning_logs_merged_filtered<-cleaning_logs_merged %>%
 #remove sensitive data
 # skimr::skim(data = clean_hh_fixed)
 if(population=="host" & write_csv==T){
-cleaning_logs_merged_filtered %>% write.csv("outputs/20200823_Host_Community_MSNA_2020_Cleaning_Log.csv",row.names = F)
-clean_hh_fixed %>% write.csv("inputs/host/clean_data/20200823_host_comm_hh.csv",row.names = F, na="")
-clean_indiv_fixed %>% write.csv("inputs/host/clean_data/20200823_host_comm_indiv.csv",row.names = F,na="")
+cleaning_logs_merged_filtered %>% write.csv(glue("outputs/", date_file_prefix(),"_Host_Community_MSNA_2020_Cleaning_Log.csv"),row.names = F)
+clean_hh_fixed %>% write.csv(glue("inputs/host/clean_data/", date_file_prefix(), "_host_comm_hh.csv"),row.names = F, na="")
+clean_indiv_fixed %>% write.csv(glue("inputs/host/clean_data/", date_file_prefix(), "_host_comm_indiv.csv"),row.names = F,na="")
 }
 
 if(population=="refugee" & write_csv==T){
-  cleaning_logs_merged_filtered %>% write.csv(glue("outputs/", date_file_prefix(),"_Refugee_Community_MSNA_2020_Cleaning_Log.csv"),row.names = F)
+  # cleaning_logs_merged_filtered %>% write.csv(glue("outputs/", date_file_prefix(),"_Refugee_Community_MSNA_2020_Cleaning_Log.csv"),row.names = F)
   clean_hh_fixed %>% write.csv(glue("inputs/refugee/clean_data/", date_file_prefix(),"_refugee_hh.csv"),row.names = F, na="")
   clean_indiv_fixed %>% write.csv(glue("inputs/refugee/clean_data/",
                                        date_file_prefix(),
@@ -291,21 +291,11 @@ if(population=="refugee" & write_csv==T){
   
 }
 
-
-cl_with_description<-readxl::read_xlsx("inputs/refugee/clean_data/REACH_BGD_Dataset_Refuee_MSNA_Au2020.xlsx", "Data Cleaning Log")
-cl_with_description %>% nrow()
-cleaning_logs_merged_filtered %>% nrow()
-
-cleaning_logs_merged_filtered %>% 
-  select(-description) %>%
-  left_join(cl_with_description) %>% write_csv(glue("outputs/", date_file_prefix(),"_Refugee_Community_MSNA_2020_Cleaning_Log.csv"))
-
-
 cleaning_logs_merged_filtered %>% 
   filter(str_detect(column_changed,"^nutrition_barriers."))  %>%
   filter(!str_detect(column_changed,"other$")) %>% 
   filter(is.na(new_value)) %>% pull(uuid) %>% unique()->check_it
-  
+
 cleaning_logs_merged_filtered %>% 
   filter(str_detect(column_changed,"^child_enrolment_nfp"))  %>%
   filter(!str_detect(column_changed,"other$")) %>% 
@@ -313,6 +303,50 @@ cleaning_logs_merged_filtered %>%
   inner_join(clean_indiv_fixed %>% 
                select(repeat_instance_name,X_submission__uuid),
              by=c("uuid"="repeat_instance_name")) ->asdf
+
+
+#scrap
+
+rank_cols<-clean_hh_fixed %>% select(starts_with("rank"),-ends_with("label")) %>% colnames()
+clean_hh_fixed %>% 
+  mutate_at(
+    rank_cols,~case_when(
+      .==3~1,
+      .==1~3,
+      .==2~2,
+      is.na(.)~0,
+      TRUE~NA_real_)
+  ) %>% pull(rank_priority_need_7 ) %>% class()
+
+borda_recode<-function(df,x){
+  df %>% mutate_at(case_when(x==3~1,
+            x==1~3,
+            x==2~2,
+            is.na(x)~0,
+            TRUE~NA_real_
+            
+            ))
+}
+clean_hh %>% 
+  mutate_at(rank_cols,borda_recode(.))
+
+
+
+
+rank_cols_recoded<-sapply(HH_svy_ob$variables[,rank_columns], function(x) ifelse(x==1,3, ifelse(3,1,x))) %>% data.frame()
+rank_cols_recoded<-sapply(rank_cols_recoded, function(x)ifelse(is.na(x),0,x)) %>% data.frame()
+
+# 
+cl_with_description<-readxl::read_xlsx("inputs/refugee/clean_data/REACH_BGD_Dataset_Refuee_MSNA_Au2020.xlsx", "Data Cleaning Log")
+# cl_with_description<-readxl::read_xlsx("inputs/host/clean_data/REACH_BGD_Dataset_Host_MSNA_Au2020.xlsx", "Data Cleaning Log")
+cl_with_description %>% nrow()
+cleaning_logs_merged_filtered %>% nrow()
+# 
+# cleaning_logs_merged_filtered %>%
+#   select(-description) %>%
+#   left_join(cl_with_description) %>% write_csv(glue("outputs/", date_file_prefix(),"_Refugee_Community_MSNA_2020_Cleaning_Log.csv"))
+
+
 asdf
 asdf %>% print(n=nrow(.))
 clean_hh_fixed %>% 

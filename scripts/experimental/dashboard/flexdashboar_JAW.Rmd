@@ -1,0 +1,71 @@
+---
+title: "Host MSNA 2020"
+output: 
+  flexdashboard::flex_dashboard: 
+    orientation: columns
+    vertical_layout: fill
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+# options(knitr.table.format = "html")
+# rmarkdown::render(output_format="flex_dashboard")
+library(flexdashboard)
+library(rmarkdown)
+library(tidyverse)
+library(shiny)
+library(htmlwidgets)
+library(data.table)
+# da<-read_csv("scrap/host_basic_analysis/2020_08_23_basic_HH_analysis_merged.csv")
+
+da<-read_csv("2020_08_23_basic_HH_analysis_merged.csv")
+# getwd()
+# "../../2020_08_23_basic_HH_analysis_merged.csv"
+# file.copy(from = "scrap/host_basic_analysis/2020_08_23_basic_HH_analysis_merged.csv", to = getwd(),)
+# getwd()
+
+da_long<-da %>% select(analysis_level,analysis_strata,starts_with("I.")) %>% 
+  pivot_longer(`I.INDV_CHAR.age_groups.INDV.0-4`:`I.HH_CHAR.gender_hoh.HH.male`) %>% 
+  filter(!is.na(value))
+
+da_long<-da_long %>% 
+  mutate(
+    sector=sample(c("WASH","FSL","Protection","Education","Health"),nrow(.),replace=T)
+    )
+# data.table::data.table(da_long)
+
+
+```
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+
+
+```{r}
+selectInput(inputId = "sector_sel",label = "Select Sector",choices = unique(da_long$sector))
+selectInput(inputId = "analysis_level_sel",label = "Select Analysis Level",choices = unique(da_long$analysis_level),selected = "overall")
+
+
+shiny::renderTable(da_long %>% filter(sector %in% input$sector_sel, analysis_level%in% input$analysis_level_sel))
+ 
+
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Chart B
+
+```{r}
+
+
+
+```
+
+### Chart C
+
+```{r}
+
+```
+

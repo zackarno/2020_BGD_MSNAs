@@ -168,3 +168,16 @@ if (write_output == "yes") {
   write.csv(basic_analysis_indv,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_INDV.csv"))
   write.csv(basic_analysis_indv_by_gender,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_by_gender_INDV.csv"))
   }
+
+
+tf1<-c(1,1,1,1,0,0,1,0,1,0,0)
+tf2<-c(1,1,1,1)
+fct_expand(as.factor(tf1),c("1","0"))
+fct_expand(as.factor(tf),c("1","0"))
+abc_df<- data.frame(a=c(1,0,NA),abc=c(NA,NA,NA),d=c("apple","banana","NA"))
+library(srvyr)
+abcdfsvy<-as_survey(df)
+debugonce(butteR::mean_proportion_table)
+butteR::mean_proportion_table(design = abcdfsvy, list_of_variables = c("a","abc","d"))
+
+

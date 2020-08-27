@@ -5,8 +5,8 @@ library(stringr)
 library(lubridate)
 # -------------------------------------------------------------------------
 
-population<-c("host","refugee")[1]
-write_output<-c("yes","no")[1]
+population<-c("host","refugee")[2]
+write_output<-c("yes","no")[2]
 day_to_run <- Sys.Date()
 source("scripts/combine_host_data_v2.R")
 source("scripts/active_path.R")
