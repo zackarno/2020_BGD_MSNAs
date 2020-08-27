@@ -23,6 +23,58 @@ tool_choices_sheet <- readxl::read_xls(tool_path,sheet = "choices")
 pop <- read.csv(pop_path,stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 
 
+# responserate ------------------------------------------------------------
+
+if(population == "host"){
+  hh_data2 <- hh_data %>% select(X_uuid,df_strata,resp_gender,I.HH_CHAR.gender_hoh.HH)
+}
+
+if(population == "refugee"){
+  hh_data2 <- hh_data %>% select(X_uuid,"upazila",resp_gender,I.HH_CHAR.gender_hoh.HH)
+}
+
+ind_data2 <- ind_data %>% left_join(hh_data2,by =c("X_submission__uuid"= "X_uuid"))
+
+hh_cols <- hh_data %>% colnames()
+indv_cols <- ind_data2 %>% colnames()
+
+overall_rate_hh <- hh_data %>% summarise_at(.vars = hh_cols,.funs = ~ sum(!is.na(.)))
+overall_rate_indv <- ind_data2 %>% summarise_at(.vars = indv_cols,.funs = ~ sum(!is.na(.)))
+
+
+overall_rate_by_resp_gender_hh <- hh_data %>% dplyr::group_by(resp_gender)%>% dplyr::summarise_at(names(hh_data %>% select(-resp_gender)),.funs = ~ sum(!is.na(.)))
+overall_rate_by_resp_gender_indv <- ind_data2 %>% dplyr::group_by(resp_gender) %>% summarise_at(names(ind_data2 %>% select(-resp_gender)),.funs = ~ sum(!is.na(.)))
+
+
+overall_rate_by_hoh_gender_hh <- hh_data %>% dplyr::group_by(I.HH_CHAR.gender_hoh.HH)%>% dplyr::summarise_at(names(hh_data %>% select(-I.HH_CHAR.gender_hoh.HH)),.funs = ~ sum(!is.na(.)))
+overall_rate_by_hoh_gender_indv <- ind_data2 %>% dplyr::group_by(I.HH_CHAR.gender_hoh.HH) %>% summarise_at(names(ind_data2 %>% select(-I.HH_CHAR.gender_hoh.HH)),.funs = ~ sum(!is.na(.)))
+
+if(population == "host"){
+  overall_rate_by_upazila_hh <- hh_data %>% dplyr::group_by(upazilla_name)%>% dplyr::summarise_at(names(hh_data %>% select(-upazilla_name)),.funs = ~ sum(!is.na(.)))
+  overall_rate_by_upazila_indv <- ind_data2 %>% dplyr::group_by(upazilla_name) %>% summarise_at(names(ind_data2 %>% select(-upazilla_name)),.funs = ~ sum(!is.na(.)))
+  
+}
+
+if(population == "refugee"){
+  overall_rate_by_upazila_hh <- hh_data %>% dplyr::group_by(upazila)%>% dplyr::summarise_at(names(hh_data %>% select(-upazila)),.funs = ~ sum(!is.na(.)))
+  overall_rate_by_upazila_indv <- ind_data2 %>% dplyr::group_by(upazila) %>% summarise_at(names(ind_data2 %>% select(-upazila)),.funs = ~ sum(!is.na(.)))
+  
+}
+
+if(write_output == "yes"){
+write.csv(overall_rate_hh,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate_HH.csv"))
+write.csv(overall_rate_indv,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate_indv.csv"))
+
+write.csv(overall_rate_by_resp_gender_hh,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate_by_resp_genderHH.csv"))
+write.csv(overall_rate_by_resp_gender_indv,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate_by_resp_genderindv.csv"))
+
+write.csv(overall_rate_by_hoh_gender_hh,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate_by_hoh_genderHH.csv"))
+write.csv(overall_rate_by_hoh_gender_indv,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate_by_hoh_gender_indv.csv"))
+
+write.csv(overall_rate_by_upazila_hh,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate_by_upazila_HH.csv"))
+write.csv(overall_rate_by_upazila_indv,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate__by_upazila_indv.csv"))
+
+}
 
 # weighting ---------------------------------------------------------------
 
@@ -107,6 +159,8 @@ df <- hh_data %>% left_join(sf_with_weights)
 
 df <- butteR::refactor_to_xlsform(data = df,kobo_survey = tool_survey_sheet ,
                                   kobo_choices = tool_choices_sheet ,label_column = "label::english")
+
+
 
 rank_cols<-df %>% select(starts_with("rank"),-ends_with("label")) %>% colnames()
 
