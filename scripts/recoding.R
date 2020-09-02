@@ -63,21 +63,35 @@ if(population == "refugee"){
   primary_and_above <- c("standard_5", "standard_6", "standard_7", "standard_8",
                          "standard_9", "standard_10", "standard_11", "tertiary_education")
   hh$datearrival_shelter <- hh$datearrival_shelter %>% ymd()
+  
+  Some_primary<- c ("standard_1", "standard_2", "standard_3", "standard_4","kindergarten")
+  Primary_and_above<- c("standard_5", "standard_6", "standard_7", "standard_8",
+                         "standard_9", "standard_10", "standard_11", "tertiary")
+  no_formal_education <- c("no_education","madrassa_only", "dont_know")
+
 }
 
 
 if(population == "host"){
-  primary_or_less <- c("madrassa_only","1","2","3","4","5") 
+  primary_or_less <- c("madrasah_only","1","2","3","4","5","dont_know") 
   some_secondary <- c("vocational","6", "7", "8", "9","10","11")
   secondary_and_above <- c("12", "above_grade_12")
+  
+  Some_primary<- c ("1", "2", "3", "4")
+  Primary_and_above<- c("vocational","5","6", "7", "8", "9", "10", "11", "12", "above_grade_12")
+  no_formal_education <- c("none","madrasah_only", "dont_know")
+  
 }
 
 
 # household to household --------------------------------------------------
 
 hh_to_hh <- hh %>% mutate(
-  I.HH_CHAR.gender_hoh.HH
-  = if_else(respondent_hoh == "yes",resp_gender,hoh_gender),
+  I.HH_CHAR.gender_hoh.HH = if_else(respondent_hoh == "yes",resp_gender,hoh_gender),
+  I.HH_CHAR.education_level2.HH = if_else(edu_highest %in% Some_primary, "Some primary", 
+                                         if_else( edu_highest %in% Primary_and_above, "Primary and above",
+                                                  if_else(edu_highest %in% no_formal_education, "No formal Education","999",missing = NULL ))),
+  
   I.HH_CHAR.age_hoh.HH = if_else(respondent_hoh == "yes",respondent_age,hoh_age),
   I.HH_CHAR.single_hoh.HH= if_else(hoh_marital %in% single_hoh,"yes","no"),
   I.HH_CHAR.elderly_hoh.HH= if_else(I.HH_CHAR.age_hoh.HH >59,"yes","no"),
@@ -108,6 +122,10 @@ hh_to_hh <- hh %>% mutate(
   I.FSL.fcs_acceptable.HH= if_else(I.FSL.fcs.HH>42,"yes","no"),
   I.FSL.fcs_borderline.HH= if_else(I.FSL.fcs.HH>28 & I.FSL.fcs.HH <= 42,"yes","no"),
   I.FSL.fcs_poor.HH= if_else(I.FSL.fcs.HH <=28, "yes","no"),
+  I.FSL.food_consumption_score.HH = if_else(I.FSL.fcs.HH > 42, "Acceptable",
+                                            if_else (I.FSL.fcs.HH >28 ,  "Borderline",
+                                                     if_else(I.FSL.fcs.HH >= 21 , "Poor",
+                                                             if_else( I.FSL.fcs.HH < 21, "Extreme","no" )))),
   I.WASH.visible_waste_often_always.HH= if_else(visible_waste %in% waste,"yes","no"),
   critical_handwashing_rs= rowSums(hh[,critical_handwashing],na.rm = T),
   I.WASH.handwashing_critical_times.HH=if_else(critical_handwashing_rs==3,"yes" ,"no",NULL),
@@ -123,6 +141,7 @@ hh_to_hh <- hh %>% mutate(
   income_sources_no_rs = rowSums(hh[,income_sources_no],na.rm = T),
   I.FSL.income_source_borrow.HH = if_else(income_sources_yes_rs > 0 & income_sources_no_rs == 0,"yes","no",NULL),
   I.HEALTH.pregnant_women_hh.HH	=	if_else(pregnant_woman >= 1 , "yes","no",NULL),
+  I.HEALTH.atleast_onepregnant_ANC.HH = if_else(pregnant_women_anc > 0, "yes","no"),
   I.HEALTH.all_pregnant_women_anc.HH	= if_else(pregnant_woman == pregnant_women_anc,"yes","no",NULL),
   I.EDU.not_send_back_to_school_total.response= sum(not_send_back_to_school_total,na.rm = T) / sum(school_children_total,na.rm = T)
 )
@@ -139,7 +158,7 @@ if (population == "refugee") {
                                              )))),
     I.HH_CHAR.highest_education.HH= if_else(edu_highest %in% edu_no_formal, "No formal education",
                                  if_else(edu_highest %in% edu_some_primary, "Some primary",
-                                         if_else(edu_highest %in% primary_and_above, "Primary and above","",missing = NULL ))),
+                                         if_else(edu_highest %in% primary_and_above, "Primary and above","dont_know",missing = NULL ))),
     I.HH_CHAR.bangla_english.HH= if_else(language_member.bangla==1 | language_member.english==1, "yes","no"),
     I.EDU.remote_learning_hh.HH= if_else(remote_learning_total< school_children_total, "no", "yes"),
     I.EDU.remote_learning_all.response = sum(remote_learning_total,na.rm = T) / sum(school_children_total,na.rm = T)
@@ -151,7 +170,7 @@ if (population == "host") {
     I.HH_CHAR.valid_id_hh= if_else(valid_id == over_18_HH_count,"yes","no"),
     I.HH_CHAR.highest_education.HH= if_else(edu_highest %in% primary_or_less, "primary_or_less",
                                  if_else(edu_highest %in% some_secondary, "some_secondary",
-                                         if_else(edu_highest %in% secondary_and_above, "secondary_and_above","",missing = NULL )))
+                                         if_else(edu_highest %in% secondary_and_above, "secondary_and_above","dont_know",missing = NULL )))
   )
 }
 
@@ -261,9 +280,14 @@ indv_to_indv<- indv %>% dplyr::mutate(
   I.INDV_CHAR.ind_work_18_59.INDV= case_when(!individual_age %in% 18:59  ~ NA_character_,
                                           ind_work== "yes"~ "yes",T~ "no"),
   I.INDV_CHAR.ind_work_60.INDV= case_when(!individual_age >59  ~ NA_character_,
+                                          individual_age <5 ~ NA_character_,
                                           ind_work== "yes"~ "yes",T~ "no"),
-  I.INDV_CHAR.ind_work_m.INDV= if_else(ind_work == "yes" & ind_gender == "male","yes","no",NULL),
-  I.INDV_CHAR.ind_work_f.INDV= if_else(ind_work == "yes" & ind_gender == "female","yes","no",NULL),
+  I.INDV_CHAR.ind_work_m.INDV= case_when( ind_gender != "male" ~ NA_character_,
+                                          individual_age <5 ~ NA_character_,
+                                          ind_work == "yes" ~ "yes",T~ "no"),
+  I.INDV_CHAR.ind_work_f.INDV= case_when( ind_gender != "female" ~ NA_character_,
+                                          individual_age <5 ~ NA_character_,
+                                          ind_work == "yes" ~ "yes",T~ "no"),
   I.INDV_CHAR.ind_work_5_older.INDV  = case_when(!individual_age >= 5 ~ NA_character_,
                                                  ind_work== "yes"~ "yes",T~ "no"),
   
@@ -291,59 +315,99 @@ indv_to_indv<- indv %>% dplyr::mutate(
 if (population == "refugee") {
   indv_to_indv <- indv_to_indv %>% dplyr::mutate(
     I.EDU.ind_ed_TLC_m_3_5.INDV = case_when(!individual_age %in% 3:5 ~ NA_character_,
-                                         ind_ed_TLC == "yes"& ind_gender == "male" ~ "yes",T~ "no"),
+                                         ind_gender != "male" ~ NA_character_,
+                                         ind_ed_TLC == "yes" ~ "yes",T~ "no"),
     I.EDU.ind_ed_TLC_m_6_14.INDV = case_when(!individual_age %in% 6:14 ~ NA_character_,
-                                          ind_ed_TLC == "yes"& ind_gender == "male" ~ "yes",T~ "no"),
+                                          ind_gender != "male" ~ NA_character_,
+                                          ind_ed_TLC == "yes"~ "yes",T~ "no"),
     I.EDU.ind_ed_TLC_m_15_18.INDV = case_when(!individual_age %in% 15:18 ~ NA_character_,
-                                          ind_ed_TLC == "yes" & ind_gender == "male"~ "yes",T~ "no"),
+                                          ind_gender != "male" ~ NA_character_,
+                                          ind_ed_TLC == "yes"~ "yes",T~ "no"),
     I.EDU.ind_ed_TLC_m_19_24.INDV = case_when(!individual_age %in% 19:24 ~ NA_character_,
-                                          ind_ed_TLC == "yes"& ind_gender == "male" ~ "yes",T~ "no"),
+                                          ind_gender != "male" ~ NA_character_,
+                                          ind_ed_TLC == "yes" ~ "yes",T~ "no"),
     
     I.EDU.ind_ed_madrassa_m_3_5.INDV = case_when(!individual_age %in% 3:5 ~ NA_character_,
-                                               ind_ed_madrassa == "yes"& ind_gender == "male" ~ "yes",T~ "no"),
+                                              ind_gender != "male" ~ NA_character_,
+                                              is.na(ind_ed_madrassa) ~ NA_character_,
+                                              ind_ed_madrassa == "yes" ~ "yes",T~ "no"),
     I.EDU.ind_ed_madrassa_m_6_14.INDV = case_when(!individual_age %in% 6:14 ~ NA_character_,
-                                                ind_ed_madrassa == "yes"& ind_gender == "male" ~ "yes",T~ "no"),
+                                                ind_gender != "male" ~ NA_character_,
+                                                is.na(ind_ed_madrassa) ~ NA_character_,
+                                                ind_ed_madrassa == "yes" ~ "yes",T~ "no"),
     I.EDU.ind_ed_madrassa_m_15_18.INDV = case_when(!individual_age %in% 15:18 ~ NA_character_,
-                                                 ind_ed_madrassa == "yes"& ind_gender == "male" ~ "yes",T~ "no"),
+                                                 ind_gender != "male" ~ NA_character_,
+                                                 is.na(ind_ed_madrassa) ~ NA_character_,
+                                                 ind_ed_madrassa == "yes"~ "yes",T~ "no"),
     I.EDU.ind_ed_madrassa_m_19_24.INDV = case_when(!individual_age %in% 19:24 ~ NA_character_,
-                                                 ind_ed_madrassa == "yes" & ind_gender == "male"~ "yes",T~ "no"),
+                                                 ind_gender != "male" ~ NA_character_,
+                                                 is.na(ind_ed_madrassa) ~ NA_character_,
+                                                 ind_ed_madrassa == "yes"~ "yes",T~ "no"),
     
     I.EDU.ind_ed_nonformal_m_3_5.INDV = case_when(!individual_age %in% 3:5 ~ NA_character_,
+                                                  ind_gender != "male" ~ NA_character_,
+                                                  is.na(ind_ed_nonformal) ~ NA_character_,
                                                 ind_ed_nonformal == "yes" & ind_gender == "male"~ "yes",T~ "no"),
     I.EDU.ind_ed_nonformal_m_6_14.INDV = case_when(!individual_age %in% 6:14 ~ NA_character_,
+                                                   ind_gender != "male" ~ NA_character_,
+                                                   is.na(ind_ed_nonformal) ~ NA_character_,
                                                  ind_ed_nonformal == "yes" & ind_gender == "male"~ "yes",T~ "no"),
     I.EDU.ind_ed_nonformal_m_15_18.INDV = case_when(!individual_age %in% 15:18 ~ NA_character_,
+                                                    ind_gender != "male" ~ NA_character_,
+                                                    is.na(ind_ed_nonformal) ~ NA_character_,
                                                   ind_ed_nonformal == "yes" & ind_gender == "male"~ "yes",T~ "no"),
     I.EDU.ind_ed_nonformal_m_19_24.INDV = case_when(!individual_age %in% 19:24 ~ NA_character_,
+                                                    ind_gender != "male" ~ NA_character_,
+                                                    is.na(ind_ed_nonformal) ~ NA_character_,
                                                   ind_ed_nonformal == "yes" & ind_gender == "male"~ "yes",T~ "no"),
     
     
     ###
     I.EDU.ind_ed_TLC_f_3_5.INDV = case_when(!individual_age %in% 3:5 ~ NA_character_,
+                                            ind_gender != "female" ~ NA_character_,
                                             ind_ed_TLC == "yes"& ind_gender == "female" ~ "yes",T~ "no"),
     I.EDU.ind_ed_TLC_f_6_14.INDV = case_when(!individual_age %in% 6:14 ~ NA_character_,
+                                             ind_gender != "female" ~ NA_character_,
                                              ind_ed_TLC == "yes"& ind_gender == "female" ~ "yes",T~ "no"),
     I.EDU.ind_ed_TLC_f_15_18.INDV = case_when(!individual_age %in% 15:18 ~ NA_character_,
+                                              ind_gender != "female" ~ NA_character_,
                                               ind_ed_TLC == "yes" & ind_gender == "female"~ "yes",T~ "no"),
     I.EDU.ind_ed_TLC_f_19_24.INDV = case_when(!individual_age %in% 19:24 ~ NA_character_,
+                                              ind_gender != "female" ~ NA_character_,
                                               ind_ed_TLC == "yes"& ind_gender == "female" ~ "yes",T~ "no"),
     
     I.EDU.ind_ed_madrassa_f_3_5.INDV = case_when(!individual_age %in% 3:5 ~ NA_character_,
+                                                 ind_gender != "female" ~ NA_character_,
+                                                 is.na(ind_ed_madrassa) ~ NA_character_,
                                                  ind_ed_madrassa == "yes"& ind_gender == "female" ~ "yes",T~ "no"),
     I.EDU.ind_ed_madrassa_f_6_14.INDV = case_when(!individual_age %in% 6:14 ~ NA_character_,
+                                                  ind_gender != "female" ~ NA_character_,
+                                                  is.na(ind_ed_madrassa) ~ NA_character_,
                                                   ind_ed_madrassa == "yes"& ind_gender == "female" ~ "yes",T~ "no"),
     I.EDU.ind_ed_madrassa_f_15_18.INDV = case_when(!individual_age %in% 15:18 ~ NA_character_,
+                                                   ind_gender != "female" ~ NA_character_,
+                                                   is.na(ind_ed_madrassa) ~ NA_character_,
                                                    ind_ed_madrassa == "yes"& ind_gender == "female" ~ "yes",T~ "no"),
     I.EDU.ind_ed_madrassa_f_19_24.INDV = case_when(!individual_age %in% 19:24 ~ NA_character_,
+                                                   ind_gender != "female" ~ NA_character_,
+                                                   is.na(ind_ed_madrassa) ~ NA_character_,
                                                    ind_ed_madrassa == "yes" & ind_gender == "female"~ "yes",T~ "no"),
     
     I.EDU.ind_ed_nonformal_f_3_5.INDV = case_when(!individual_age %in% 3:5 ~ NA_character_,
+                                                  ind_gender != "female" ~ NA_character_,
+                                                  is.na(ind_ed_nonformal) ~ NA_character_,
                                                   ind_ed_nonformal == "yes" & ind_gender == "female"~ "yes",T~ "no"),
     I.EDU.ind_ed_nonformal_f_6_14.INDV = case_when(!individual_age %in% 6:14 ~ NA_character_,
+                                                   ind_gender != "female" ~ NA_character_,
+                                                   is.na(ind_ed_nonformal) ~ NA_character_,
                                                    ind_ed_nonformal == "yes" & ind_gender == "female"~ "yes",T~ "no"),
     I.EDU.ind_ed_nonformal_f_15_18.INDV = case_when(!individual_age %in% 15:18 ~ NA_character_,
+                                                    ind_gender != "female" ~ NA_character_,
+                                                    is.na(ind_ed_nonformal) ~ NA_character_,
                                                     ind_ed_nonformal == "yes" & ind_gender == "female"~ "yes",T~ "no"),
     I.EDU.ind_ed_nonformal_f_19_24.INDV = case_when(!individual_age %in% 19:24 ~ NA_character_,
+                                                    ind_gender != "female" ~ NA_character_,
+                                                    is.na(ind_ed_nonformal) ~ NA_character_,
                                                     ind_ed_nonformal == "yes" & ind_gender == "female"~ "yes",T~ "no")
     
     ###
@@ -358,40 +422,56 @@ I.EDU.ind_school_dropout.INDV= case_when( !individual_age %in% 4:24 ~ NA_charact
       ind_formal_learning == "none" & ind_formal_learning_none != "none" ~ "yes",T~ "no"),
 
 I.EDU.ind_formal_learning_f_4.INDV=case_when(!individual_age == 4 ~ NA_character_,
+                                             ind_gender != "female" ~ NA_character_,
                                               ind_formal_learning != "none" & ind_gender == "female"~ "yes",T~ "no"),
 I.EDU.ind_formal_learning_f_5_11.INDV=case_when(!individual_age %in% 5:11  ~ NA_character_, 
+                                                ind_gender != "female" ~ NA_character_,
                                               ind_formal_learning != "none" & ind_gender == "female"~ "yes", T~ "no"),
 I.EDU.ind_formal_learning_f_12_17.INDV=case_when(!individual_age %in% 12:17 ~ NA_character_, 
+                                                 ind_gender != "female" ~ NA_character_,
                                               ind_formal_learning != "none"& ind_gender == "female" ~ "yes",T~ "no"),
 I.EDU.ind_formal_learning_f_18_24.INDV=case_when(!individual_age %in% 18:24  ~ NA_character_, 
+                                                 ind_gender != "female" ~ NA_character_,
                                               ind_formal_learning != "none"& ind_gender == "female" ~ "yes",  T~ "no"),
 
 I.EDU.ind_nonformal_learn_f_4.INDV=case_when(!individual_age == 4 ~ NA_character_, 
+                                             ind_gender != "female" ~ NA_character_,
                                               ind_nonformal_learn != "none"& ind_gender == "female" ~ "yes",T~ "no"),
 I.EDU.ind_nonformal_learn_f_5_11.INDV=case_when(!individual_age %in% 5:11 ~ NA_character_, 
+                                                ind_gender != "female" ~ NA_character_,
                                               ind_nonformal_learn != "none" & ind_gender == "female"~ "yes", T~ "no"),
 I.EDU.ind_nonformal_learn_f_12_17.INDV=case_when(!individual_age %in% 12:17  ~ NA_character_, 
+                                                 ind_gender != "female" ~ NA_character_,
                                               ind_nonformal_learn != "none" & ind_gender == "female"~ "yes", T~ "no"),
 I.EDU.ind_nonformal_learn_f_18_24.INDV=case_when(!individual_age %in% 18:24  ~ NA_character_, 
+                                                 ind_gender != "female" ~ NA_character_,
                                                ind_nonformal_learn != "none"& ind_gender == "female" ~ "yes", T~ "no"),
 ####
 
 I.EDU.ind_formal_learning_m_4.INDV=case_when(!individual_age == 4 ~ NA_character_,
+                                             ind_gender != "male" ~ NA_character_,
                                                ind_formal_learning != "none" & ind_gender == "male"~ "yes",T~ "no"),
 I.EDU.ind_formal_learning_m_5_11.INDV=case_when(!individual_age %in% 5:11  ~ NA_character_, 
+                                                ind_gender != "male" ~ NA_character_,
                                                 ind_formal_learning != "none" & ind_gender == "male"~ "yes", T~ "no"),
-I.EDU.ind_formal_learning_m_12_17.INDV=case_when(!individual_age %in% 12:17 ~ NA_character_, 
+I.EDU.ind_formal_learning_m_12_17.INDV=case_when(!individual_age %in% 12:17 ~ NA_character_,
+                                                 ind_gender != "male" ~ NA_character_,
                                                  ind_formal_learning != "none"& ind_gender == "male" ~ "yes",T~ "no"),
 I.EDU.ind_formal_learning_m_18_24.INDV=case_when(!individual_age %in% 18:24  ~ NA_character_, 
+                                                 ind_gender != "male" ~ NA_character_,
                                                  ind_formal_learning != "none"& ind_gender == "male" ~ "yes",  T~ "no"),
 
 I.EDU.ind_nonformal_learn_m_4.INDV=case_when(!individual_age == 4 ~ NA_character_, 
+                                             ind_gender != "male" ~ NA_character_,
                                              ind_nonformal_learn != "none"& ind_gender == "male" ~ "yes",T~ "no"),
 I.EDU.ind_nonformal_learn_m_5_11.INDV=case_when(!individual_age %in% 5:11 ~ NA_character_, 
+                                                ind_gender != "male" ~ NA_character_,
                                                 ind_nonformal_learn != "none" & ind_gender == "male"~ "yes", T~ "no"),
 I.EDU.ind_nonformal_learn_m_12_17.INDV=case_when(!individual_age %in% 12:17  ~ NA_character_, 
+                                                 ind_gender != "male" ~ NA_character_,
                                                  ind_nonformal_learn != "none" & ind_gender == "male"~ "yes", T~ "no"),
 I.EDU.ind_nonformal_learn_m_18_24.INDV=case_when(!individual_age %in% 18:24  ~ NA_character_, 
+                                                 ind_gender != "male" ~ NA_character_,
                                                  ind_nonformal_learn != "none"& ind_gender == "male" ~ "yes", T~ "no")
 
 ####
