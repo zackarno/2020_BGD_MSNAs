@@ -1,0 +1,9 @@
+work,market,I.HH_CHAR.can_go_alone_with_someone_not_at_all_work_market.HH
+can_go_accompanied_by_someone_else,not_applicable,no
+can_go_alone,not_applicable,no
+can_never_go,not_applicable,no
+not_applicable,not_applicable,NA
+can_go_accompanied_by_someone_else,can_go_accompanied_by_someone_else,no
+can_go_alone,can_go_alone,no
+can_never_go,can_never_go,yes
+not_applicable,can_go_alone,no

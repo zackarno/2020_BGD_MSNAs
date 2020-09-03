@@ -5,7 +5,7 @@ library(stringr)
 library(lubridate)
 # -------------------------------------------------------------------------
 
-population<-c("host","refugee")[2]
+population<-c("host","refugee")[1]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 source("scripts/merge_and_clean_final_dataset.R")
@@ -31,11 +31,29 @@ single_hoh <- c( "widow", "separated", "divorced", "single")
 disability<- c(" some difficulty", "lot_of_difficulty", "cannot_do_at_all" )
 health_distant<- c("60_180","more_180")
 waste<- c("often", "always")
+food_base_cping <- c("eating_less_preferred_food" ,  "borrowing_food" ,  
+                     "limiting_portion_size" ,  "reducing_number_of_meals_a_day" ,  
+                     "limiting_adults_food_intake" ,  "limiting_women_food_intake" ,  
+                     "limiting_men_food_intake")
 food_source_cash<- hh %>%  select(starts_with("food_source.")) %>% colnames() %>% dput()
 critical_handwashing<- c("handwashing_three_times.before_eating", 
                          "handwashing_three_times.before_cooking", "handwashing_three_times.after_defecation", 
                          "handwashing_three_times.before_breastfeeding", "handwashing_three_times.before_feeding_children", 
                          "handwashing_three_times.after_handling_a_childs_stool")    
+
+# can_go_alone_work_market<- c("work_mobility.can_go_alone" ,"market_mobility.can_go_alone")  
+# can_go_alone_helath_wfs <-  c("health_mobility.can_go_alone" ,"wfs_mobility.can_go_alone")
+# 
+# can_go_accompanied_by_someone_work_market <- c("work_mobility.can_go_accompanied_by_someone_else" ,  
+#                                     "market_mobility.can_go_accompanied_by_someone_else" )  
+# can_go_accompanied_by_someone_helath_wfs <- c( "health_mobility.can_go_accompanied_by_someone_else" ,  
+#                                     "wfs_mobility.can_go_accompanied_by_someone_else" ) 
+# 
+# cannot_go_at_all_work_market<- c("work_mobility.can_never_go" ,  "market_mobility.can_never_go")   
+# cannot_go_at_all_helath_wfs<-c("health_mobility.can_never_go" ,  "wfs_mobility.can_never_go")
+
+mobility_col_work_market <- c("work_mobility","market_mobility")
+mobility_col_health_wfs <- c("wfs_mobility","health_mobility")
 
 income_sources_all1 <- hh %>% dplyr::select(dplyr::starts_with("income_source.")) %>% colnames() %>% dput()
 income_sources_yes <- c("income_source.remittances_from_abroad","income_source.assistance_from_relatives_and_friends",
@@ -49,13 +67,25 @@ shelter_improvements_reason <- hh %>% dplyr::select(dplyr::starts_with("improvem
 shelter_issue_cols <- hh %>% dplyr::select(dplyr::starts_with("shelter_issues.")) %>% 
   select(-contains("no_issues")) %>% select(-contains("dont_know")) %>% colnames() %>% dput()
 
+shelter_mobility_cols <- hh %>% dplyr::select(dplyr::starts_with("shelter_mobility."))%>% 
+  select(-contains("no_issues")) %>% select(-contains("dont_know")) %>% colnames() %>% dput()
+
 cooking_fuel_cols <- hh %>% dplyr::select(dplyr::starts_with("cooking_fuel.")) %>% 
   select(-contains("none")) %>% select(-contains("dont_know")) %>% colnames() %>% dput()
 
 market_problem <- hh %>% dplyr::select(dplyr::starts_with("market_problems.")) %>% 
   select(-contains("none")) %>% select(-contains("dont_know")) %>% colnames() %>% dput()
+awareness_cols <-c("what_preparation_should_be_taken_beforehand", 
+                   "what_are_the_different_early_warning_flags"  ,
+                   "what_are_the_sources_of_information"  , 
+                   "what_is_covid_19_the_symptoms"  , 
+                   "what_precautions_should_be_taken"  , 
+                   "where_to_go_or_whom_to_contact" )
+
 
 if(population == "refugee"){
+  enough_info <- c("food_assistance"  , "livelihood"  , "water"  , "sanitation"  , "shelter"  , "non_food_items"  ,
+                   "health_services"  , "nutrition_services"  , "remote_education"  , "protection"  , "site_management" )
   edu_no_formal <- c("no_education","madrassa_only") 
   edu_some_primary <- c("kindergarten","standard_1", "standard_2", "standard_3", "standard_4")
   primary_and_above <- c("standard_5", "standard_6", "standard_7", "standard_8",
@@ -71,6 +101,9 @@ if(population == "refugee"){
 
 
 if(population == "host"){
+  enough_info <- c("food_assistance"  , "livelihood"  , "water"  , "sanitation"  , "non_food_items", 
+                   "health_services"  , "nutrition_services"  , "remote_education"  , "protection" )
+  
   primary_or_less <- c("madrasah_only","1","2","3","4","5","dont_know") 
   some_secondary <- c("vocational","6", "7", "8", "9","10","11")
   secondary_and_above <- c("12", "above_grade_12")
@@ -91,9 +124,19 @@ hh_to_hh <- hh %>% mutate(
                                                   if_else(edu_highest %in% no_formal_education, "No formal Education","999",missing = NULL ))),
   
   I.HH_CHAR.age_hoh.HH = if_else(respondent_hoh == "yes",respondent_age,hoh_age),
+  I.HH_CHAR.food_base_cping.HH = if_else(rowSums(hh[,food_base_cping]== "yes",na.rm = T)>0,"yes","no",NULL),
   I.HH_CHAR.single_hoh.HH= if_else(hoh_marital %in% single_hoh,"yes","no"),
   I.HH_CHAR.elderly_hoh.HH= if_else(I.HH_CHAR.age_hoh.HH >59,"yes","no"),
   I.HH_CHAR.large_hh.HH = if_else(hh_size >4,"yes","no"),
+  
+  I.HH_CHAR.can_never_go_alone_work_market.HH= if_else(rowSums(hh[,mobility_col_work_market]== "not_applicable",na.rm = T)==2,NA_character_,
+                              if_else(rowSums(hh[,mobility_col_work_market]=="can_never_go",na.rm = T)==2,"yes","no",NULL)),
+  
+  I.HH_CHAR.can_never_go_alone_health_wfs.HH= if_else(rowSums(hh[,mobility_col_health_wfs]== "not_applicable",na.rm = T)==2,NA_character_,
+                              if_else(rowSums(hh[,mobility_col_health_wfs]=="can_never_go",na.rm = T)==2,"yes","no",NULL)),
+  
+  I.HH_CHAR.received_awarness_information.HH = if_else(rowSums(hh[,awareness_cols] == "yes",na.rm = T)==6,"yes","no",NULL),
+  
   I.HEALTH.disabled_hh.HH = if_else(disability_seeing %in% disability|disability_hearing %in% disability|
                             disability_walking%in% disability|disability_remembering %in% disability|
                             disability_self_care%in% disability| disability_speaking %in% disability,"yes","no",NULL ),
@@ -103,7 +146,16 @@ hh_to_hh <- hh %>% mutate(
   I.SNFI.atlst_one_shelter_improvements_reason.HH = if_else(shelter_improvements_reason_rs > 0,"yes","no",NULL),
   # I.SNFI.improvement_reason_none.HH= na_if(improvement_reason.no_need_to_improve,y = 1),
   shelter_issue_cols_rs = rowSums(hh[,shelter_issue_cols],na.rm = T),
-  I.SNFI.improvements_despite_reporting_issue.HH = if_else(improvement.no_improvement == 1 & shelter_issue_cols_rs >0, "yes","no",NULL),
+  shelter_mobility_cols_rs = rowSums(hh[,shelter_mobility_cols],na.rm = T),
+  I.HH_CHAR.atlst_one_shelter_mobility.HH = if_else(shelter_mobility_cols_rs > 0,"yes","no",NULL),
+  I.HH_CHAR.atlst_one_shelter_issue.HH = if_else(shelter_issue_cols_rs > 0,"yes","no",NULL),
+  I.HH_CHAR.incm_src_employ_business.HH	= if_else(income_source.labor_inside_the_camp == 1 | 
+                                                    income_source.labor_outside_the_camp == 1 | 
+                                                    income_source.own_business == 1,"yes","no",NULL),
+    
+  I.HH_CHAR.rarely_never_feeling_consulted.HH = if_else(consulted == "rarely" | consulted == "never","yes","no",NULL),
+  I.SNFI.improvements_despite_reporting_issue.HH = if_else(improvement.no_improvement == 1 & 
+                                                             shelter_issue_cols_rs >0, "yes","no",NULL),
   cooking_fuel_rs =rowSums(hh[,cooking_fuel_cols],na.rm = T),
   I.SNFI.lpg_only.HH = if_else(cooking_fuel_rs == 1 & (cooking_fuel.receiving_lpg_refills == 1 |
                                                          cooking_fuel.buying_lpg_refills == 1),"yes",
@@ -122,8 +174,7 @@ hh_to_hh <- hh %>% mutate(
   I.FSL.fcs_poor.HH= if_else(I.FSL.fcs.HH <=28, "yes","no"),
   I.FSL.food_consumption_score.HH = if_else(I.FSL.fcs.HH > 42, "Acceptable",
                                             if_else (I.FSL.fcs.HH >28 ,  "Borderline",
-                                                     if_else(I.FSL.fcs.HH >= 21 , "Poor",
-                                                             if_else( I.FSL.fcs.HH < 21, "Extreme","no" )))),
+                                                     if_else(I.FSL.fcs.HH <= 28 , "Poor","no" ))),
   I.WASH.visible_waste_often_always.HH= if_else(visible_waste %in% waste,"yes","no"),
   critical_handwashing_rs= rowSums(hh[,critical_handwashing],na.rm = T),
   I.WASH.handwashing_critical_times.HH=if_else(critical_handwashing_rs==3,"yes" ,"no",NULL),
@@ -148,6 +199,12 @@ hh_to_hh <- hh %>% mutate(
 
 if (population == "refugee") {
   hh_to_hh <- hh_to_hh %>% dplyr::mutate(
+    I.HH_CHAR.not_having_light.HH	=if_else(enough_light.yes != 1 & enough_light.dont_know != 1,"yes","no",NULL),
+    I.HH_CHAR.pay_anythng_to_live.HH = if_else(shelter_paid.no_need != 1 & shelter_paid.dont_know != 1,"yes","no",NULL),
+    I.HH_CHAR.enough_information_for_all.HH = if_else(rowSums(hh_to_hh[,enough_info]== "yes",na.rm = T) == 11,"yes","no",NULL),
+    I.HH_CHAR.emergency_cping_strategy.HH = if_else(depending_on_food_rations ==1 | begging == 1 |
+                                                       selling_labor == 1 | reduced_nonessential_expenditures == 1 ,"yes","no",NULL),
+    
     I.HH_CHAR.arrival_date.HH = if_else(ymd(datearrival_shelter) < ymd("2017-08-01"),"Before_August_2017",
                              if_else(ymd(datearrival_shelter) %in% ymd("2017-08-01"):ymd("2018-07-31") ,"aug_17_to_jul_18",
                                      if_else(ymd(datearrival_shelter) %in% ymd("2018-08-01"):ymd("2019-07-31") ,"aug_18_to_jul_19",
@@ -165,6 +222,9 @@ if (population == "refugee") {
 }
 if (population == "host") {
   hh_to_hh <- hh_to_hh %>% dplyr::mutate(
+    I.HH_CHAR.enough_information_for_all.HH = if_else(rowSums(hh_to_hh[,enough_info]== "yes",na.rm = T) == 9,"yes","no",NULL),
+    I.HH_CHAR.emergency_cping_strategy.HH= if_else(depending_on_food_rations ==1 | selling_labor == 1 | begging == 1,"yes","no",NULL),
+      
     I.HH_CHAR.valid_id_hh= if_else(valid_id == over_18_HH_count,"yes","no"),
     I.HH_CHAR.highest_education.HH= if_else(edu_highest %in% primary_or_less, "primary_or_less",
                                  if_else(edu_highest %in% some_secondary, "some_secondary",
@@ -482,6 +542,7 @@ hh_to_indv1<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
   
   dependents = sum(individual_age<15,na.rm = T) + sum(individual_age>64,na.rm = T),
   non_dependent = sum(individual_age %in% 15:64,na.rm = T),
+  I.HH_CHAR.atlst_no_child_nutrition_scrnd.INDVHH = if_else(any(child_nutrition_screened == "no"),"yes","no",NULL),
   I.HH_CHAR.dep_ratio.INDVHH= (dependents/non_dependent),
   I.HH_CHAR.no_working_age.INDVHH=if_else(non_dependent== 0, "yes","no"),
   I.HH_CHAR.no_male_working_age.INDVHH= if_else(any(individual_age %in% 15:64 & ind_gender== "male"),"no","yes"),
@@ -497,6 +558,7 @@ hh_to_indv1<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
 
 if (population== "refugee"){
   hh_to_indv2<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
+    I.HH_CHAR.atlst_one_birth_plc_home.INDVHH = if_else(any(ind_birth_place== "at_home"),"yes","no",NULL),
     I.EDU.ind_out_of_school.INDVHH= if_else(sum(ind_ed_TLC=="no" & individual_age %in% 6:18,na.rm = T )>0, "yes","no",NULL)
   )
 }
@@ -504,6 +566,8 @@ if (population== "refugee"){
 
 if (population == "host"){
   hh_to_indv2<- indv_to_indv %>% dplyr::group_by(X_submission__uuid) %>% dplyr::summarise(
+  I.HH_CHAR.atlst_one_birth_plc_home.INDVHH = if_else(any(ind_birth_place== "at_home"),"yes","no",NULL),
+    
     I.EDU.ind_out_of_school.INDVHH= if_else(sum(ind_formal_learning == "none" & individual_age %in% 5:17,na.rm = T)>0, "yes","no",NULL)
   )
 }
