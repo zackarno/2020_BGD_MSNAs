@@ -5,7 +5,7 @@ library(stringr)
 library(lubridate)
 # -------------------------------------------------------------------------
 
-population<-c("host","refugee")[1]
+population<-c("host","refugee")[2]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 source("scripts/merge_and_clean_final_dataset.R")
@@ -94,9 +94,10 @@ if(population == "refugee"){
   
   Some_primary<- c ("standard_1", "standard_2", "standard_3", "standard_4","kindergarten")
   Primary_and_above<- c("standard_5", "standard_6", "standard_7", "standard_8",
-                         "standard_9", "standard_10", "standard_11", "tertiary")
-  no_formal_education <- c("no_education","madrassa_only", "dont_know")
-
+                         "standard_9", "standard_10", "standard_11", "tertiary_education")
+  no_formal_education <- c("no_education","madrassa_only")
+  emergecy_coping_stra <- c("depending_on_food_rations","begging","selling_labor","reduced_nonessential_expenditures")
+  
 }
 
 
@@ -104,13 +105,16 @@ if(population == "host"){
   enough_info <- c("food_assistance"  , "livelihood"  , "water"  , "sanitation"  , "non_food_items", 
                    "health_services"  , "nutrition_services"  , "remote_education"  , "protection" )
   
-  primary_or_less <- c("madrasah_only","1","2","3","4","5","dont_know") 
+  primary_or_less <- c("madrasah_only","1","2","3","4","5") 
   some_secondary <- c("vocational","6", "7", "8", "9","10","11")
   secondary_and_above <- c("12", "above_grade_12")
   
   Some_primary<- c ("1", "2", "3", "4")
   Primary_and_above<- c("vocational","5","6", "7", "8", "9", "10", "11", "12", "above_grade_12")
-  no_formal_education <- c("none","madrasah_only", "dont_know")
+  no_formal_education <- c("madrasah_only")
+  
+  emergecy_coping_stra <- c("depending_on_food_rations","begging","selling_labor")
+  
   
 }
 
@@ -119,9 +123,9 @@ if(population == "host"){
 
 hh_to_hh <- hh %>% mutate(
   I.HH_CHAR.gender_hoh.HH = if_else(respondent_hoh == "yes",resp_gender,hoh_gender),
-  I.HH_CHAR.education_level2.HH = if_else(edu_highest %in% Some_primary, "Some primary", 
+  I.HH_CHAR.education_level_similar_as_2019.HH = if_else(edu_highest %in% Some_primary, "Some primary", 
                                          if_else( edu_highest %in% Primary_and_above, "Primary and above",
-                                                  if_else(edu_highest %in% no_formal_education, "No formal Education","999",missing = NULL ))),
+                                                  if_else(edu_highest %in% no_formal_education, "No formal Education","dont_know",missing = NULL ))),
   
   I.HH_CHAR.age_hoh.HH = if_else(respondent_hoh == "yes",respondent_age,hoh_age),
   I.HH_CHAR.food_base_cping.HH = if_else(rowSums(hh[,food_base_cping]== "yes",na.rm = T)>0,"yes","no",NULL),
@@ -192,9 +196,9 @@ hh_to_hh <- hh %>% mutate(
   I.HEALTH.pregnant_women_hh.HH	=	if_else(pregnant_woman >= 1 , "yes","no",NULL),
   I.HEALTH.atleast_onepregnant_ANC.HH = if_else(pregnant_women_anc > 0, "yes","no"),
   I.HEALTH.all_pregnant_women_anc.HH	= if_else(pregnant_woman == pregnant_women_anc,"yes","no",NULL),
+  I.HH_CHAR.emergency_cping_strategy.HH = if_else(rowSums(hh[,emergecy_coping_stra] == "yes",na.rm = T)>0,"yes","no",NULL),
   I.EDU.not_send_back_to_school_total.response= sum(not_send_back_to_school_total,na.rm = T) / sum(school_children_total,na.rm = T)
 )
-
 
 
 if (population == "refugee") {
@@ -202,9 +206,7 @@ if (population == "refugee") {
     I.HH_CHAR.not_having_light.HH	=if_else(enough_light.yes != 1 & enough_light.dont_know != 1,"yes","no",NULL),
     I.HH_CHAR.pay_anythng_to_live.HH = if_else(shelter_paid.no_need != 1 & shelter_paid.dont_know != 1,"yes","no",NULL),
     I.HH_CHAR.enough_information_for_all.HH = if_else(rowSums(hh_to_hh[,enough_info]== "yes",na.rm = T) == 11,"yes","no",NULL),
-    I.HH_CHAR.emergency_cping_strategy.HH = if_else(depending_on_food_rations ==1 | begging == 1 |
-                                                       selling_labor == 1 | reduced_nonessential_expenditures == 1 ,"yes","no",NULL),
-    
+    I.HH_CHAR.enough_information_atlst_one.HH = if_else(rowSums(hh_to_hh[,enough_info]== "yes",na.rm = T) > 0,"yes","no",NULL),
     I.HH_CHAR.arrival_date.HH = if_else(ymd(datearrival_shelter) < ymd("2017-08-01"),"Before_August_2017",
                              if_else(ymd(datearrival_shelter) %in% ymd("2017-08-01"):ymd("2018-07-31") ,"aug_17_to_jul_18",
                                      if_else(ymd(datearrival_shelter) %in% ymd("2018-08-01"):ymd("2019-07-31") ,"aug_18_to_jul_19",
@@ -220,11 +222,12 @@ if (population == "refugee") {
     
     )
 }
+
+
 if (population == "host") {
   hh_to_hh <- hh_to_hh %>% dplyr::mutate(
     I.HH_CHAR.enough_information_for_all.HH = if_else(rowSums(hh_to_hh[,enough_info]== "yes",na.rm = T) == 9,"yes","no",NULL),
-    I.HH_CHAR.emergency_cping_strategy.HH= if_else(depending_on_food_rations ==1 | selling_labor == 1 | begging == 1,"yes","no",NULL),
-      
+    I.HH_CHAR.enough_information_atlst_one.HH = if_else(rowSums(hh_to_hh[,enough_info]== "yes",na.rm = T) > 0,"yes","no",NULL),
     I.HH_CHAR.valid_id_hh= if_else(valid_id == over_18_HH_count,"yes","no"),
     I.HH_CHAR.highest_education.HH= if_else(edu_highest %in% primary_or_less, "primary_or_less",
                                  if_else(edu_highest %in% some_secondary, "some_secondary",
@@ -542,7 +545,9 @@ hh_to_indv1<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
   
   dependents = sum(individual_age<15,na.rm = T) + sum(individual_age>64,na.rm = T),
   non_dependent = sum(individual_age %in% 15:64,na.rm = T),
-  I.HH_CHAR.atlst_no_child_nutrition_scrnd.INDVHH = if_else(any(child_nutrition_screened == "no"),"yes","no",NULL),
+  I.HH_CHAR.adlt_male_in_hh.INDVHH = if_else(sum(individual_age>17 & ind_gender == "male",na.rm = T) >0 ,"yes","no"),
+  I.HH_CHAR.atlst_no_child_nutrition_scrnd.INDVHH = if_else(any(child_nutrition_screened == "no",na.rm = T),"yes",
+                                                            if_else(all(is.na(child_nutrition_screened)),NA_character_,"no",NULL)),
   I.HH_CHAR.dep_ratio.INDVHH= (dependents/non_dependent),
   I.HH_CHAR.no_working_age.INDVHH=if_else(non_dependent== 0, "yes","no"),
   I.HH_CHAR.no_male_working_age.INDVHH= if_else(any(individual_age %in% 15:64 & ind_gender== "male"),"no","yes"),
@@ -552,13 +557,15 @@ hh_to_indv1<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
   I.HH_CHAR.ind_5_17_hh.INDVHH=if_else(sum(I.INDV_CHAR.ind_5_17.INDV == "yes",na.rm = T) >0,"yes","no",NULL),
   I.HEALTH.ind_need_treatment_hh.INDVHH=if_else(sum(ind_need_treatment== "yes",na.rm = T) >0,"yes","no",NULL),
   I.NUTRITION.child_enrolment_nfp_tota.INDVHH = sum(child_enrolment_nfp == "yes",na.rm = T),
-  I.HH_CHAR.ind_work_hh.INDVHH = if_else(any(ind_work == "yes" & individual_age > 17),"yes","no"),
+  I.HH_CHAR.ind_work_hh.INDVHH = if_else(any(ind_work == "yes" & individual_age > 17,na.rm = T),"yes",
+                                         if_else(all(is.na(ind_work)),NA_character_,"no",NULL)),
   
   )
 
 if (population== "refugee"){
   hh_to_indv2<- indv_to_indv %>% group_by(X_submission__uuid) %>% summarise(
-    I.HH_CHAR.atlst_one_birth_plc_home.INDVHH = if_else(any(ind_birth_place== "at_home"),"yes","no",NULL),
+    I.HH_CHAR.atlst_one_birth_plc_home.INDVHH = if_else(any(ind_birth_place== "at_home",na.rm = T),"yes",
+                                                        if_else(all(is.na(ind_birth_place)),NA_character_,"no",NULL)),
     I.EDU.ind_out_of_school.INDVHH= if_else(sum(ind_ed_TLC=="no" & individual_age %in% 6:18,na.rm = T )>0, "yes","no",NULL)
   )
 }
@@ -566,7 +573,8 @@ if (population== "refugee"){
 
 if (population == "host"){
   hh_to_indv2<- indv_to_indv %>% dplyr::group_by(X_submission__uuid) %>% dplyr::summarise(
-  I.HH_CHAR.atlst_one_birth_plc_home.INDVHH = if_else(any(ind_birth_place== "at_home"),"yes","no",NULL),
+  I.HH_CHAR.atlst_one_birth_plc_home.INDVHH = if_else(any(ind_birth_place== "at_home",na.rm = T),"yes",
+                                                      if_else(all(is.na(ind_birth_place)),NA_character_,"no",NULL)),
     
     I.EDU.ind_out_of_school.INDVHH= if_else(sum(ind_formal_learning == "none" & individual_age %in% 5:17,na.rm = T)>0, "yes","no",NULL)
   )

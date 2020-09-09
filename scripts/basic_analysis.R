@@ -7,7 +7,7 @@ library(srvyr)
 library(forcats)
 library(dplyr)
 
-population<-c("host","refugee")[1]
+population<-c("host","refugee")[2]
 write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 source("scripts/active_path.R")
@@ -26,11 +26,11 @@ pop <- read.csv(pop_path,stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 # responserate ------------------------------------------------------------
 
 if(population == "host"){
-  hh_data2 <- hh_data %>% select(X_uuid,df_strata,resp_gender,I.HH_CHAR.gender_hoh.HH)
+  hh_data2 <- hh_data %>% select(X_uuid,df_strata,resp_gender,I.HH_CHAR.gender_hoh.HH,I.HH_CHAR.adlt_male_in_hh.INDVHH)
 }
 
 if(population == "refugee"){
-  hh_data2 <- hh_data %>% select(X_uuid,"upazila",resp_gender,I.HH_CHAR.gender_hoh.HH)
+  hh_data2 <- hh_data %>% select(X_uuid,"upazila",resp_gender,I.HH_CHAR.gender_hoh.HH,I.HH_CHAR.adlt_male_in_hh.INDVHH)
 }
 
 ind_data2 <- ind_data %>% left_join(hh_data2,by =c("X_submission__uuid"= "X_uuid"))
@@ -44,6 +44,9 @@ overall_rate_indv <- ind_data2 %>% summarise_at(.vars = indv_cols,.funs = ~ sum(
 
 overall_rate_by_resp_gender_hh <- hh_data %>% dplyr::group_by(resp_gender)%>% dplyr::summarise_at(names(hh_data %>% select(-resp_gender)),.funs = ~ sum(!is.na(.)))
 overall_rate_by_resp_gender_indv <- ind_data2 %>% dplyr::group_by(resp_gender) %>% summarise_at(names(ind_data2 %>% select(-resp_gender)),.funs = ~ sum(!is.na(.)))
+
+overall_rate_by_adult_male_hh <- hh_data %>% dplyr::group_by(I.HH_CHAR.adlt_male_in_hh.INDVHH)%>% dplyr::summarise_at(names(hh_data %>% select(-I.HH_CHAR.adlt_male_in_hh.INDVHH)),.funs = ~ sum(!is.na(.)))
+overall_rate_by_adult_male_indv <- ind_data2 %>% dplyr::group_by(I.HH_CHAR.adlt_male_in_hh.INDVHH) %>% summarise_at(names(ind_data2 %>% select(-I.HH_CHAR.adlt_male_in_hh.INDVHH)),.funs = ~ sum(!is.na(.)))
 
 
 overall_rate_by_hoh_gender_hh <- hh_data %>% dplyr::group_by(I.HH_CHAR.gender_hoh.HH)%>% dplyr::summarise_at(names(hh_data %>% select(-I.HH_CHAR.gender_hoh.HH)),.funs = ~ sum(!is.na(.)))
@@ -71,8 +74,12 @@ write.csv(overall_rate_by_resp_gender_indv,paste0("outputs/butteR_basic_analysis
 write.csv(overall_rate_by_hoh_gender_hh,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate_by_hoh_genderHH.csv"))
 write.csv(overall_rate_by_hoh_gender_indv,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate_by_hoh_gender_indv.csv"))
 
+write.csv(overall_rate_by_adult_male_hh,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate_by_adult_male_HH.csv"))
+write.csv(overall_rate_by_adult_male_indv,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate_adult_male_indv.csv"))
+
+
 write.csv(overall_rate_by_upazila_hh,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate_by_upazila_HH.csv"))
-write.csv(overall_rate_by_upazila_indv,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate__by_upazila_indv.csv"))
+write.csv(overall_rate_by_upazila_indv,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_response_rate_by_upazila_indv.csv"))
 
 }
 
@@ -132,6 +139,7 @@ sf_with_weights <- sf_with_weights %>% select(upazilla_name,survey_weight)
 # data_for_butteR ---------------------------------------------------------
 
 df <- hh_data %>% left_join(sf_with_weights)
+write.csv(df,paste0("outputs/",population,"/data_sets_with_weights/",population,"_data_set_weights_hh.csv"))
 
 # lt<-butteR::make_xlsform_lookup_table(kobo_survey = tool_survey_sheet,kobo_choices = tool_choices_sheet
 #                                       ,label_column = "label::english")
@@ -202,7 +210,9 @@ yes_other_cols <- df %>%  select(ends_with(".yes_other")) %>% colnames() %>% dpu
 cols_to_analyze <- c(cols_to_analyze,"masks_source.mask_source_other",yes_other_cols,"other_reasons.yes_covid","other_reasons.no") 
 
 if(population == "host"){
-dfsvy$variables$I.FSL.food_source_assistance.HH<- forcats::fct_expand(dfsvy$variables$I.FSL.food_source_assistance.HH,c( "no", "yes"))
+  
+  dfsvy$variables$I.HH_CHAR.enough_information_for_all.HH<- forcats::fct_expand(dfsvy$variables$I.HH_CHAR.enough_information_for_all.HH,c( "no", "yes"))
+  dfsvy$variables$I.FSL.food_source_assistance.HH<- forcats::fct_expand(dfsvy$variables$I.FSL.food_source_assistance.HH,c( "no", "yes"))
   dfsvy$variables$I.HH_CHAR.no_working_age.INDVHH<- forcats::fct_expand(dfsvy$variables$I.HH_CHAR.no_working_age.INDVHH,c( "no", "yes"))
 }
 
@@ -211,6 +221,8 @@ dfsvy$variables$I.FSL.food_source_assistance.HH<- forcats::fct_expand(dfsvy$vari
 basic_analysis<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze)
 basic_analysis_by_hoh<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
                                                  aggregation_level = "I.HH_CHAR.gender_hoh.HH")
+basic_analysis_by_adlt_male<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
+                                                 aggregation_level = "I.HH_CHAR.adlt_male_in_hh.INDVHH")
 basic_analysis_by_resp_gender<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
                                                          aggregation_level = "resp_gender")
 
@@ -236,21 +248,25 @@ if (write_output == "yes") {
   write.csv(basic_analysis_by_strata,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_by_strata_HH.csv"))
   write.csv(basic_analysis_by_strata_hoh,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_by_strata_HoH_HH.csv"))
   
+  write.csv(basic_analysis_by_adlt_male,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_by_adlt_male_HH.csv"))
+  
   }
 
 
 # individual loop ---------------------------------------------------------
 if(population == "host"){
-df_weight <- df %>% select(X_uuid,survey_weight,df_strata,resp_gender)
+df_weight <- df %>% select(X_uuid,survey_weight,df_strata,resp_gender,I.HH_CHAR.adlt_male_in_hh.INDVHH)
 }
 
 if(population == "refugee"){
-  df_weight <- df %>% select(X_uuid,survey_weight,"upazila",resp_gender)
+  df_weight <- df %>% select(X_uuid,survey_weight,"upazila",resp_gender,I.HH_CHAR.adlt_male_in_hh.INDVHH)
 }
 
 indv_with_weights <- ind_data %>% left_join(df_weight,by=c("X_submission__uuid"="X_uuid"))
 
 indv_with_weights<- indv_with_weights %>% filter(!is.na(survey_weight))
+
+write.csv(indv_with_weights,paste0("outputs/",population,"/data_sets_with_weights/",population,"_data_set_weights_indv.csv"))
 
 
 indv_with_weights <- butteR::refactor_to_xlsform(data = indv_with_weights,kobo_survey = tool_survey_sheet ,
@@ -289,6 +305,8 @@ if(population == "refugee"){
 basic_analysis_indv<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv)
 basic_analysis_indv_by_resp_gender<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv,
                                                          aggregation_level = "resp_gender" )
+basic_analysis_indv_by_adlt_male<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv,
+                                                              aggregation_level = "I.HH_CHAR.adlt_male_in_hh.INDVHH" )
 
 if (population == "host"){
   basic_analysis_indv_by_strata<-butteR::mean_prop_working(design = dfsvy_indv,list_of_variables = cols_to_analyze_indv,
@@ -306,4 +324,6 @@ if (write_output == "yes") {
   write.csv(basic_analysis_indv,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_INDV.csv"))
   write.csv(basic_analysis_indv_by_strata,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_by_strata_INDV.csv"))
   write.csv(basic_analysis_indv_by_resp_gender,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_by_resp_gender_INDV.csv"))
-    }
+  write.csv(basic_analysis_indv_by_adlt_male,paste0("outputs/butteR_basic_analysis/",population,"/",str_replace_all(day_to_run,"-","_"),"_basic_analysis_by_adlt_male_INDV.csv"))
+  
+  }
