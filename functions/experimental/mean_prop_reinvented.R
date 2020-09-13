@@ -19,8 +19,8 @@ analyze_numerics<-function(df,aggregate_by=NULL,variables_to_analyze){
       names_to = "indicator"
       
   ) %>% 
-    mutate(stat=case_when(str_detect(indicator,"_low$")~"ci_low",
-                          str_detect(indicator,"_upp$")~"ci_upp",
+    mutate(stat=case_when(str_detect(indicator,"_low$")~"mean_low",
+                          str_detect(indicator,"_upp$")~"mean_upp",
                           TRUE~"mean"),
            indicator=str_replace_all(indicator,"_low$|_upp$","")) %>% 
     pivot_wider(names_from = stat ,values_from = value) 
@@ -71,13 +71,13 @@ analyze_factors<-function(df,aggregate_by=NULL,variables_to_analyze){
     
     variables_to_analyze %>% 
       map_dfr(~df %>% 
-                group_by(!!sym(.x),!!!(aggregate_by)) %>% 
+                group_by(!!!(aggregate_by),!!sym(.x)) %>% 
                 summarise(
                   mean=survey_mean(na.rm=T,vartype="ci"),
                   n_unweighted= unweighted(n())
                 ) %>% 
                 mutate(indicator=.x) %>% 
-                dplyr::select(indicator,option=.x,everything())
+                dplyr::select(!!!aggregate_by,indicator,option=.x,everything())
       )
   }
 }
@@ -175,11 +175,14 @@ mean_prop2020<- function(df, aggregate_by, variables_to_analyze){
   factor_vars<-all_vars_data %>% select_if(~is.character(.)|is.factor(.)) %>% colnames()
   
   
-  
+  if(length(numeric_vars)>0){
   numerics_analyzed<-analyze_numerics(df, aggregate_by, numeric_vars)
+  res$numerics<- numerics_analyzed}
+  if(length(factor_vars)>0){
+
   factors_analyzed<-analyze_factors(df, aggregate_by, factor_vars)
-  res$numerics<- numerics_analyzed
   res$factors<- factors_analyzed
+  }
   return(res)
   
 }
