@@ -8,7 +8,7 @@ library(forcats)
 library(dplyr)
 
 population<-c("host","refugee")[2]
-write_output<-c("yes","no")[2]
+write_output<-c("yes","no")[1]
 day_to_run <- Sys.Date()
 source("scripts/active_path.R")
 
