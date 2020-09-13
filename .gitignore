@@ -11,9 +11,10 @@
 /scripts/experimental/*
 /other/*
 /figure/*
-/funtions/experimental/*
+/functions/experimental/*
 /msna2020_res/*
 /DAP/scap_archive/*
+
 /to_hq/*
 
 !/outputs/host/composite_indicator/.gitkeep
