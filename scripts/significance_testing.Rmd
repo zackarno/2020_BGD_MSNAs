@@ -1,0 +1,341 @@
+---
+title: "2020 MSNA Significance Testing"
+output: 
+  # flexdashboard::flex_dashboard:
+    html_document:
+    # vertical_layout: fill
+      code_folding: "hide"
+
+---
+
+```{r setup,include = F, echo=FALSE}
+
+library(srvyr)
+library(survey)
+library(tidyverse)
+library(tidymodels)
+library(butteR)
+library(googlesheets4)
+library(jtools)
+library(extrafont)
+library(corrplot)
+source("../functions/reach_style.R")
+source("../functions/mean_prop2020.R")
+source("../functions/svychisq_posthoc_test.R")
+
+write_output<-F
+```
+
+```{r, message = FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, warning = FALSE,echo=TRUE,include=TRUE, message=FALSE) 
+population<- c("host","refugee")[2]
+# dap<-readxl::read_xlsx("../DAP/Significance_testing_DAP_TR_YPA_revisions.xlsx")
+dap<-read_csv("../DAP/Significance_testing_DAP_TR_YPA_revisions.csv",col_types = cols())
+
+dap<-dap %>% 
+  janitor::clean_names() %>% 
+  mutate(population=str_replace_all(population, c("Ref"="refugee","HC"="host"))) %>%
+  rename(analysis_pop="population")
+
+
+dap <- dap  %>% filter(analysis_pop %in% c("Both",population) )
+
+
+dap_hh<- dap %>% filter(analysis_level=="HH") %>% filter(remove==0)
+# dap_indiv<- dap %>% filter(analysis_level=="HH") %>% filter(remove==0)
+
+
+
+if (population=="refugee"){
+  hh<-read.csv("../inputs/refugee/significance_testing/2020_hh_refugee_with_composites.csv",
+               stringsAsFactors = F,na.strings=c(""," ","NA",NA))
+  hh<-hh %>% 
+  mutate(
+    I.HH_CHAR.education_level_similar_as_2019.HH= na_if(I.HH_CHAR.education_level_similar_as_2019.HH,"dont_know")
+    )
+  
+
+  ind<-read.csv("../inputs/refugee/significance_testing/2020_indiv_refugee_with_composites.csv",
+                stringsAsFactors = F,na.strings=c(""," ","NA",NA))
+}
+if (population=="host"){
+  hh<-read.csv("../inputs/host/significance_testing/2020_hh_host_with_composites.csv",
+               stringsAsFactors = F,na.strings=c(""," ","NA",NA))
+  
+  ind<-read.csv("../inputs/refugee/significance_testing/2020_indiv_refugee_with_composites.csv",
+                stringsAsFactors = F,na.strings=c(""," ","NA",NA))
+}
+
+#GOOD CHECK TO DO FIRST
+# dap_hh$new_dependent_variable_name[!dap_hh$new_dependent_variable_name %in% colnames(hh)]
+# dap_hh$independent_variable_name[!dap_hh$independent_variable_name %in% colnames(hh)]
+
+# dap_hh<- dap_hh %>%
+  # filter(!str_detect(new_dependent_variable_name,"feedback.faced_some_problem"))
+# dap_hh$new_dependent_variable_name[!dap_hh$new_dependent_variable_name %in% colnames(hh)]
+dap_hh<-dap_hh %>% 
+  filter(new_dependent_variable_name %in% colnames(hh),
+         independent_variable_name %in% colnames(hh))
+# dap_hh$new_dependent_variable_name[!dap_hh$new_dependent_variable_name %in% colnames(hh)]
+
+
+```
+
+
+```{r,message=FALSE}
+
+hh<-hh %>% 
+  mutate_if(is.character,as.factor)
+
+
+dep_vars_with_over_one_val<-hh %>% select(unique(dap_hh$new_dependent_variable_name)) %>% map(~length(levels(.))) %>% keep(.>1) %>% names()
+
+dep_vars_with_only_one_level<-hh %>% select(unique(dap_hh$new_dependent_variable_name)) %>% select_if(is.factor) %>%  map(~length(levels(.))) %>% keep(.<=1) %>% names()
+
+dap_hh<-dap_hh %>% 
+  filter(new_dependent_variable_name %in%dep_vars_with_over_one_val)
+
+if(population=="refugee"){
+hhsvy<-as_survey(hh, strata=camp_name, weights=survey_weight)}
+if(population=="host"){
+hhsvy<-as_survey(hh, strata=upazilla_name, weights=survey_weight)}
+
+
+
+# set up a bunch of empty lists to fill in forloop ive marked the important ones for now
+# the results_df_list is really the only important one for now, but the other might have some goodies later
+
+mod_res<-list()
+res2<-list()
+plot_list<-list()
+result_df_list<-list()
+posthoc_list<-list()
+corplot_list<-list()
+
+for(i in 1:nrow(dap_hh)){
+  ind_var_label<-dap_hh$household_characteristic[i]
+  dep_var_label<-dap_hh$indicator_of_interest[i]
+  ind_temp<-dap_hh$independent_variable_name[i]
+  dep_temp<-dap_hh$new_dependent_variable_name[i]
+  # print(paste0(ind_temp," by ", dep_temp))
+  
+  
+  # new function i adapted, from non weighted version. Function allows for pvalue adjustment, in theory we should
+  # probably apply bonferonni adjustment, but I am considering this more of an exploratory step just to help understand 
+  # what is driving the significance of the overall chisq tests.
+  ph_df<-svychisq_posthoc_test(design = hhsvy,independent_var = ind_temp,dependent_var = dep_temp,method = "none") %>%
+   filter(value=="p_value") %>%
+    mutate_all(~as.character(.)) %>% 
+      pivot_longer(
+   cols = starts_with(dep_temp),
+   names_to = "temporary_column",
+   values_to = "rank",
+   values_drop_na = F
+ ) %>% 
+    separate(col=temporary_column,sep="\\*(?!.*\\*)",into = c("dep_var","indep_var_choice")) %>% 
+    select(ind_var_name,indep_var_choice,dep_var,everything())
+  # print("posthoc done") # debugging step
+  
+  #overall chisq
+  chisq_res<-svychisq(formula = formula(paste0("~",dep_temp,"+",ind_temp)),design=hhsvy) 
+  # just messing with some tidy models functions
+  chisq_res_tidy<-chisq_res%>%
+    tidy() %>% 
+    mutate(ind_var=ind_temp,
+           dep_var=dep_temp) %>% 
+    janitor::clean_names()
+  mod_res[[i]]<-chisq_res_tidy
+  
+  # extract p value- will use this to plot significant results later
+  pval<- chisq_res_tidy$p_value
+  
+  # these plots could be cool down the road, they help show what is driving the differences of the chisq test as well
+  # contrib<-round(100*chisq_res$residuals^2/chisq_res$statistic,3)
+  # if( !is.nan(sum(contrib))){
+  # corplot_list[[paste0(ind_temp,"_",dep_temp)]]<-corrplot(contrib, is.cor = FALSE,title = paste0(dep_temp," by ",ind_temp))}
+  # print("corplotdone")
+    ci_df<-mean_prop2020(df = hhsvy,aggregate_by = ind_temp, variables_to_analyze = dep_temp) %>% bind_rows() #%>% 
+    
+    #tidy up data and join dissagregated percent means with chisq overall results
+    ci_df<-ci_df %>%  mutate(
+      ind_var_name= colnames(.)[1],
+      
+      ) %>%
+    rename(ind_var_name_value=ind_temp) %>%
+      select(ind_var_name,everything()) %>% 
+    left_join(chisq_res_tidy, by=c("ind_var_name"="ind_var", "indicator"="dep_var")) %>% 
+    mutate(ind_var_label=ind_var_label,
+           dep_var_label=dep_var_label)
+  
+  
+  #join posthoc tests with the rest of the results
+   ci_df<-ci_df %>% left_join(ph_df,
+                              by=c("ind_var_name"="ind_var_name",
+                                   "ind_var_name_value"="indep_var_choice",
+                                   "indicator"="dep_var",
+                                   "option"="dep_var_option"))
+   
+   # save posthoc  tes results independently (not necessary)
+   posthoc_list[[i]]<-ph_df
+
+  # put temporary result df into a list
+   result_df_list[[i]]<- ci_df
+  
+   # ill print these out later  
+  # plot_list<-ci_df %>% 
+  #   ggplot(aes(x=option,y=mean, color=ind_var_name_value))+
+  #   geom_point()+scale_y_continuous(labels=scales::percent)+
+  #   geom_errorbar(aes(ymin=mean_low,ymax=mean_upp))+
+  #   ggtitle(paste0(dep_temp, " by ", ind_temp," p value= ", pval))
+  # 
+  
+  
+}
+```
+
+```{r}
+
+#bind results into one df
+all_res_data<-bind_rows(result_df_list)
+
+# add some signicance symbols based on overall chisq and post-hoc p values
+all_res_data<-all_res_data %>%
+  mutate(sig_tf= ifelse(p_value<=0.05,T,F),
+         sig_symbol=case_when(p_value<=0.0001~ "****",
+                              p_value<=0.001~ "***",
+                              p_value<=0.01~ "**",
+                              p_value<=0.05~ "*",
+                              TRUE~ ""),
+         pval_pairwise= parse_number(rank),
+         pairwise_sig = case_when(pval_pairwise<=0.0001~ "****",
+                                  pval_pairwise<=0.001~ "***",
+                                  pval_pairwise<=0.01~ "**",
+                                  pval_pairwise<=0.05~ "*",
+                                  ),
+         plot_id= paste0(ind_var_name,indicator)
+         ) 
+
+
+# this is the output that is being used to fill analysis tables
+
+
+if(write_output==T){
+write_csv(all_res_data,paste0("../../2020_BGD_MSNAs/outputs/",population,"/",population,"_2020_chisq_tests.csv"))
+}
+
+
+wrapper <- function(x, ...) 
+{
+  paste(strwrap(x, ...), collapse = "\n")
+}
+
+
+# grab significant findings by id to plot
+sig_uupid<-all_res_data %>% filter(sig_tf==T) %>%   pull(plot_id) %>% unique()
+
+
+# loop through and  plot significant findings as bar plots.
+plot_list<-list()
+for(i in 1:length(sig_uupid)){
+  uupid_temp<-sig_uupid[i]
+  df_temp<-all_res_data %>% 
+    filter(plot_id==uupid_temp) %>% 
+    filter(!is.na(ind_var_name_value))
+  pval<-round(unique(df_temp$p_value),3)
+  psig<-unique(df_temp$sig_symbol)
+  ind_code<-unique(df_temp$ind_var_name)
+  ind_label_l<-unique(df_temp$ind_var_label)
+  dep_label_l<-unique(df_temp$dep_var_label)
+  dep_code<-unique(df_temp$indicator)
+  pval_sig_label<-unique(df_temp$sig_symbol)
+  plot_list[[uupid_temp]]<-df_temp%>% 
+    ggplot(aes(x=option,y=mean,fill=ind_var_name_value), color="black")+ #color=ind_var_name_value
+    geom_bar(stat="identity",position="dodge")+scale_y_continuous(labels=scales::percent)+
+    # scale_fill_manual(values = tmaptools::get_brewer_pal("Set3", n = 5))+
+    scale_fill_brewer(palette = "Set3")+
+    geom_text(aes(x=option, y= mean_upp+0.2,label=pairwise_sig ), position = position_dodge(width = 1) ,color="black")+
+    geom_errorbar(aes(ymin=mean_low,ymax=mean_upp),colour="black",position = position_dodge(width = .9), width = .2)+
+    labs(x=dep_code, color=ind_code,fill=ind_code)+
+    ggtitle(paste0(wrapper(paste0(dep_label_l, " by ", ind_label_l),170) ,"\n","p value: " , pval,pval_sig_label))+
+    reach_style()
+}
+
+
+
+
+```
+
+
+
+
+
+# `r ifelse(population=="host" , print("Host Community"), print("Refugee"))`
+
+## Significant Results
+
+
+
+```{r, out.width= "80%"}
+# print plots to document
+walk(sig_uupid, ~ print(plot_list[[.x]]))
+
+
+# corplot_list[[2]] %>% print()
+# asdf<-corrplot(contrib, is.cor = FALSE,title = paste0(dep_temp," by ",ind_temp))
+# asdf
+```
+
+
+
+```{r,eval=F, include=F}
+chisq_res$stdres
+x<-as.matrix(c(hh_svy$variables$I.HH_CHAR.arrival_date.HH,hh_svy$variables$I.FSL.food_consumption_score.HH))
+x<-as.matrix(chisq_res$observed)
+dimnames(x)
+
+stdres<-chisq_res$stdres
+round_digits<- 4
+alpha<- 0.05
+# Calculate the chi square values based on the residuls
+chi_square_values <- stdres ^ 2
+    # Get the p values for the chi square values
+p_values <- pchisq(chi_square_values, 1, lower.tail = FALSE)
+    # Adjust the p values with the chosen method
+adjusted_p_values <- p_values
+for (i in 1:nrow(adjusted_p_values)) {
+      adjusted_p_values[i, ] <- p.adjust(
+        adjusted_p_values[i, ],
+        method = "bonferroni",
+        n = ncol(adjusted_p_values) * nrow(adjusted_p_values)
+      )
+    }
+    # Round the adjusted p values
+    adjusted_p_values <- round(adjusted_p_values, digits = round_digits)
+    # Convert stdres and adjusted p values into data frames
+    stdres <- as.data.frame.matrix(stdres)
+    adjusted_p_values <- as.data.frame.matrix(adjusted_p_values)
+    adjusted_p_values[adjusted_p_values < alpha] <- paste0(adjusted_p_values[adjusted_p_values < alpha], "*")
+    # Combine residuals and p values into one table
+    results <-
+      as.data.frame(matrix(
+        data = NA,
+        nrow = nrow(adjusted_p_values) * 2,
+        ncol = ncol(adjusted_p_values) + 2
+      ))
+    odd_rows <- seq(1, nrow(results), 2)
+    even_rows <- seq(2, nrow(results), 2)
+    results[odd_rows, c(3:ncol(results))] <- stdres
+    results[even_rows, c(3:ncol(results))] <- adjusted_p_values
+    results[odd_rows, 2] <- "Residuals"
+    results[even_rows, 2] <- "p values"
+    colnames <- dimnames(x)[[2]]
+    colnames <- append(colnames, c("Dimension", "Value"), after = 0)
+    colnames(results) <- colnames
+    rownames <- dimnames(x)[[1]]
+    results[odd_rows, 1] <- rownames
+    results[even_rows, 1] <- rownames
+    # Return the results
+    results
+  }
+```
+
