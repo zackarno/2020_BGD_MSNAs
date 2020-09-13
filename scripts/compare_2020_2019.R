@@ -9,7 +9,7 @@ day_to_run <- Sys.Date()
 write_output<-T
 source("scripts/active_path.R")
 source("functions/mean_prop2020.R")
-source("scripts/experimental/reach_style.R")
+source("functions/reach_style.R")
 if(population=="refugee"){
   svy_strata= "camp_name"
 }
@@ -169,6 +169,7 @@ indiv2019_svy2<-indiv2019_svy %>%
             
 # this was the check i did to help remove all NA values from lookup above -- if they all come back empty.. good to go
 
+
 hh2019_svy2$variables %>% 
   select(comparison_lt_hh$column_name_2020) %>%
   select_if(is.factor) %>%
@@ -194,6 +195,17 @@ hh2020_svy$variables %>%
 
 
 
+# we want out of whole population NA means no debt
+debt_qs2019<- hh2019_svy2 %>% select(starts_with("debt_reason.")) %>% colnames()
+debt_qs2020<- hh2020_svy %>% select(starts_with("debt_reason.")) %>% colnames()
+
+hh2019_svy2<-hh2019_svy2 %>% 
+  mutate_at(debt_qs2019,~ifelse(is.na(.),0,.))
+hh2020_svy<-hh2020_svy %>% 
+  mutate_at(debt_qs2020,~ifelse(is.na(.),0,.))
+
+
+mean_prop2020(df = hh2020_svy,aggregate_by = NULL,variables_to_analyze = debt_qs2020) %>% data.frame()
 # analyze 2019
 res_2019<-mean_prop2020(df = hh2019_svy2,aggregate_by = NULL,variables_to_analyze = comparison_lt_hh$column_name_2020)
 indiv_res_2019<-mean_prop2020(df = indiv2019_svy2,aggregate_by = NULL,variables_to_analyze = comparison_lt_indiv$column_name_2020)
